@@ -1,0 +1,10 @@
+.gameScreen {
+  text-align: center;
+  margin: 0px auto;
+}
+
+canvas {
+  border: 1px solid black;
+  width: 640px;
+  height: 640px;
+}

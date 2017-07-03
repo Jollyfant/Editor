@@ -1,0 +1,13 @@
+var OBJECTS = [{
+  "id": 14,
+  "tile": true
+}, {
+  "id": 15,
+  "tile": true
+}, {
+  "id": 17,
+  "tile": true
+}, {
+  "id": 18,
+  "tile": true
+}];
