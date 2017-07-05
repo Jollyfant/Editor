@@ -154,8 +154,8 @@ Game.prototype.IncrementViewport = function(i, j) {
 
   // Clamp the position and correct for the zoom level
   this.viewport.SetPosition(
-    (this.viewport.i + i).clamp(0, 1000 - (20 / this.zoomLevel)),
-    (this.viewport.j + j).clamp(0, 1000 - (20 / this.zoomLevel))
+    (this.viewport.i + i).clamp(0, this.WORLD_MAP_WIDTH - (20 / this.zoomLevel)),
+    (this.viewport.j + j).clamp(0, this.WORLD_MAP_HEIGHT - (20 / this.zoomLevel))
   );
 
 }
@@ -286,6 +286,51 @@ Game.prototype.ChangePointer = function(type) {
   this.canvas.style.cursor = type;
 }
 
+Game.prototype.MoveViewportDrag = function(component) {
+
+  const SLIDER_WIDTH = 64;
+  const SLIDER_INCREMENT = 1000 / (640 - SLIDER_WIDTH);
+
+  var coordinates = this.GetCanvasCoordinates(event);
+  var component = this.clickedComponent;
+
+  var maximumViewport = this.GetMaximumViewportIndex();
+
+  if(component === "verticalBar") {
+
+    coordinates.y -= 0.5 * SLIDER_WIDTH;
+
+    this.viewport.SetPosition(
+      null,
+      Math.floor(coordinates.y * SLIDER_INCREMENT).clamp(0, maximumViewport.j)
+    );
+
+  } else if(component === "horizontalBar") {
+
+    coordinates.x -= 0.5 * SLIDER_WIDTH;
+
+    this.viewport.SetPosition(
+      Math.floor(coordinates.x * SLIDER_INCREMENT).clamp(0, maximumViewport.i),
+      null
+    );
+
+  }
+
+}
+
+/* Function Game.GetMaximumViewportIndex
+ * Returns the maximum allowed value for the viewport
+ * corrected for the zoom level in (i, j)
+ */
+Game.prototype.GetMaximumViewportIndex = function() {
+
+  return {
+    "i": this.WORLD_MAP_WIDTH - (20 / this.zoomLevel),
+    "j": this.WORLD_MAP_HEIGHT - (20 / this.zoomLevel)
+  }
+
+}
+
 /* Public Function Game.ClickEvent
  * Handles mouse click events
  */
@@ -293,41 +338,8 @@ Game.prototype.ClickEvent = function(event) {
   
   var coordinates = this.GetCanvasCoordinates(event);
 
-  if(this.clickedComponent === "verticalBar") {
-
-    const SLIDER_WIDTH = 64;
-    const SLIDER_INCREMENT = 1000 / (640 - SLIDER_WIDTH);
-
-    // Slider handle in middle
-    coordinates.y -= 0.5 * SLIDER_WIDTH;
-
-    // Set the viewport
-    this.viewport.SetPosition(
-      null,
-      Math.floor(coordinates.y * SLIDER_INCREMENT).clamp(0, 1000 - (20 / this.zoomLevel))
-    );
-
-    return;
-
-  }
-
-  // If the component is the horizontalBar
-  if(this.clickedComponent === "horizontalBar") {
-
-    const SLIDER_WIDTH = 64;
-    const SLIDER_INCREMENT = 1000 / (640 - SLIDER_WIDTH);
-
-    // Slider handle in middle
-    coordinates.x -= 0.5 * SLIDER_WIDTH;
-
-    // Set the viewport
-    this.viewport.SetPosition(
-      Math.floor(coordinates.x * SLIDER_INCREMENT).clamp(0, 1000 - (20 / this.zoomLevel)),
-      null
-    );
-
-    return;
-
+  if(this.clickedComponent === "horizontalBar" || this.clickedComponent === "verticalBar") {
+    this.MoveViewportDrag();
   }
 
   // Get the active index
@@ -789,6 +801,7 @@ Game.prototype.GetPixelPosition = function(position) {
  */
 Game.prototype.DrawSelectionRectangle = function(position) {
 
+  // Transparency value for hover
   const HOVER_ALPHA_VALUE = 0.5;
 
   // Draw the phantom hover object with transparency
