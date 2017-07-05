@@ -5,11 +5,13 @@ var Game = function() {
 
   this.WORLD_MAP_WIDTH = 1000;
   this.WORLD_MAP_HEIGHT = 1000;
+  this.PADDING = 20;
 
   // Get the canvas & context
   this.canvas = document.getElementById("gameScreenCanvas");
-  this.canvas.height = 640;
-  this.canvas.width = 640;
+  this.canvas.height = 640 + this.PADDING;
+  this.canvas.width = 640 + this.PADDING;
+
   this.context = this.canvas.getContext("2d");
 
   // Create the viewport
@@ -34,7 +36,8 @@ var Game = function() {
   this.undoCommandMemory = new Array();
   this.redoCommandMemory = new Array();
   
-  this.mouseDown = 0;
+  this.mouseDown = false;
+  this.clickedComponent = null;
 
   this.Init();
 
@@ -98,20 +101,23 @@ Game.prototype.KeyEvent = function(event) {
   const LOWER_Z_KEY = 90;
   const LOWER_R_KEY = 82;
 
+  const ZOOM_PLUS_OSX = 187;
+  const ZOOM_MINUS_OSX = 189;
+
   // Move the world map around the viewport
   if(event.keyCode === ARROW_KEY_LEFT) {
-    this.viewport.Increment(-1, 0);
+    this.IncrementViewport(-1, 0);
   } else if(event.keyCode === ARROW_KEY_UP) {
-    this.viewport.Increment(0, -1);
+    this.IncrementViewport(0, -1);
   } else if(event.keyCode === ARROW_KEY_RIGHT) {
-    this.viewport.Increment(1, 0);
+    this.IncrementViewport(1, 0);
   } else if(event.keyCode === ARROW_KEY_DOWN) {
-    this.viewport.Increment(0, 1);
+    this.IncrementViewport(0, 1);
   }
 
-  if(event.keyCode === ZOOM_PLUS) {
+  if(event.keyCode === ZOOM_PLUS || event.keyCode === ZOOM_PLUS_OSX) {
     this.Zoom(2);
-  } else if(event.keyCode === ZOOM_MINUS) {
+  } else if(event.keyCode === ZOOM_MINUS || event.keyCode === ZOOM_MINUS_OSX) {
     this.Zoom(0.5);
   }
 
@@ -138,6 +144,32 @@ Game.prototype.KeyEvent = function(event) {
   }
 
   this.Render();
+
+}
+
+/* Game.IncrementViewport
+ * Moves the viewport up, down, left or right
+ */
+Game.prototype.IncrementViewport = function(i, j) {
+
+  // Clamp the position and correct for the zoom level
+  this.viewport.SetPosition(
+    (this.viewport.i + i).clamp(0, 1000 - (20 / this.zoomLevel)),
+    (this.viewport.j + j).clamp(0, 1000 - (20 / this.zoomLevel))
+  );
+
+}
+ 
+Game.prototype.GetComponent = function(canvasCoordinates) {
+
+  if(canvasCoordinates.y > 640) {
+    return "horizontalBar";
+  } else if(canvasCoordinates.x > 640) {
+    return "verticalBar";
+  } else {
+    return "gameWorldWindow";
+  }
+  
 
 }
 
@@ -234,11 +266,13 @@ Game.prototype.CenterCamera = function() {
   // Correct the viewport width for the zoom level
   const HALF_VIEWPORT_WIDTH = (10 / this.zoomLevel);
   
+  var zoomLevelCorrection = 20 / this.zoomLevel;
+
   this.viewport.SetPosition(
-    (this.activePosition.i - HALF_VIEWPORT_WIDTH).clamp(0, this.WORLD_MAP_WIDTH),
-    (this.activePosition.j - HALF_VIEWPORT_WIDTH).clamp(0, this.WORLD_MAP_HEIGHT)
+    (this.activePosition.i - HALF_VIEWPORT_WIDTH).clamp(0, this.WORLD_MAP_WIDTH - zoomLevelCorrection),
+    (this.activePosition.j - HALF_VIEWPORT_WIDTH).clamp(0, this.WORLD_MAP_HEIGHT - zoomLevelCorrection)
   );
-	
+
 }
 
 /* Number.clamp
@@ -255,27 +289,66 @@ Game.prototype.ChangePointer = function(type) {
 /* Public Function Game.ClickEvent
  * Handles mouse click events
  */
-Game.prototype.ClickEvent = function() {
+Game.prototype.ClickEvent = function(event) {
   
+  var coordinates = this.GetCanvasCoordinates(event);
+
+  if(this.clickedComponent === "verticalBar") {
+
+    const SLIDER_WIDTH = 64;
+    const SLIDER_INCREMENT = 1000 / (640 - SLIDER_WIDTH);
+
+    // Slider handle in middle
+    coordinates.y -= 0.5 * SLIDER_WIDTH;
+
+    // Set the viewport
+    this.viewport.SetPosition(
+      null,
+      Math.floor(coordinates.y * SLIDER_INCREMENT).clamp(0, 1000 - (20 / this.zoomLevel))
+    );
+
+    return;
+
+  }
+
+  // If the component is the horizontalBar
+  if(this.clickedComponent === "horizontalBar") {
+
+    const SLIDER_WIDTH = 64;
+    const SLIDER_INCREMENT = 1000 / (640 - SLIDER_WIDTH);
+
+    // Slider handle in middle
+    coordinates.x -= 0.5 * SLIDER_WIDTH;
+
+    // Set the viewport
+    this.viewport.SetPosition(
+      Math.floor(coordinates.x * SLIDER_INCREMENT).clamp(0, 1000 - (20 / this.zoomLevel)),
+      null
+    );
+
+    return;
+
+  }
+
   // Get the active index
   var index = this.activePosition.GetIndex();
-  
+
   // Delete objects
   if(this.deleting) {
 
     if(this.worldMapTiles[index] !== undefined) {
 
-	  var id = this.worldMapTiles[index].objects.pop() || null;
+      var id = this.worldMapTiles[index].objects.pop() || null;
 	  
-	  if(id !== null) {
+      if(id !== null) {
 		  
-	    this.undoCommandMemory.push({
+        this.undoCommandMemory.push({
           "type": "delete",
           "id": id,
           "index": index
         });
-		
-	  }
+
+      }
 	  
     }
 	
@@ -294,10 +367,10 @@ Game.prototype.ClickEvent = function() {
 
     this.AddTileObject(index, this.activeTileId);
 
-	this.undoCommandMemory.push({
+    this.undoCommandMemory.push({
       "type": "place",
-	  "id": this.activeTileId,
-	  "index": index
+      "id": this.activeTileId,
+      "index": index
     });
 	
   }
@@ -336,21 +409,27 @@ Game.prototype.MoveEvent = function(event) {
 
   var activePositionBuffer = this.GetTile(event);
 
-  // If the mouse button is down
-  // and a new tile is touched
-  if(this.MovementDeferred(activePositionBuffer)) {
-	  
+  if(this.clickedComponent === "horizontalBar") {
+
     if(this.mouseDown) {
-      this.ClickEvent();
+      this.ClickEvent(event);
     }
-	
-	// Set the active position to the buffer
-    // and render the screen
+
     this.activePosition = activePositionBuffer;
 
-	this.Render();
+  } else if(this.MovementDeferred(activePositionBuffer)) {
+	  
+    if(this.mouseDown) {
+      this.ClickEvent(event);
+    }
+
+    // Set the active position to the buffer
+    // and render the screen
+    this.activePosition = activePositionBuffer;
 	
   }
+
+  this.Render();
 
 }
 
@@ -380,8 +459,8 @@ Game.prototype.GetGameCoordinates = function(event) {
   // Transform the canvas coordinates (x, y) to game coordinates (i, j)
   // correcting for the zoomLevel, viewport and sprite width
   return {
-    "i": Math.floor(canvasCoordinates.x / (32 * this.zoomLevel)) + this.viewport.i,
-    "j": Math.floor(canvasCoordinates.y / (32 * this.zoomLevel)) + this.viewport.j
+    "i": Math.floor((canvasCoordinates.x) / (32 * this.zoomLevel)) + this.viewport.i,
+    "j": Math.floor((canvasCoordinates.y) / (32 * this.zoomLevel)) + this.viewport.j
   }
 
 }
@@ -396,6 +475,60 @@ Game.prototype.GetCanvasCoordinates = function(event) {
     "x": event.pageX - this.bounds.left,
     "y": event.pageY - this.bounds.top
   }
+
+}
+
+Game.prototype.SetSliderPosition = function() {
+
+  // Correct for the zoom level
+  var zoomLevelCorrection = 20 / this.zoomLevel;
+
+  const SLIDER_WIDTH = 64;
+  const SLIDER_INCREMENT = (640 - SLIDER_WIDTH) / (1000 - zoomLevelCorrection);
+
+  this.context.fillStyle = "red";
+  this.context.fillRect(
+    this.viewport.i * SLIDER_INCREMENT,
+    640,
+    SLIDER_WIDTH,
+    this.PADDING
+  );
+
+  this.context.fillRect(
+    640,
+    this.viewport.j * SLIDER_INCREMENT,
+    this.PADDING,
+    SLIDER_WIDTH
+  );
+
+}
+
+Game.prototype.RenderInterface = function() {
+
+  this.context.beginPath();
+
+  // Use half pixels to prevent aliasing effects
+  this.context.rect(
+    -0.5,
+    0.5 + 640,
+    641,
+    this.PADDING
+  );
+
+  this.context.stroke();
+  this.SetSliderPosition();
+
+  this.context.beginPath();
+
+  // Use half pixels to prevent aliasing effects
+  this.context.rect(
+    640 + 0.5,
+    -0.5,
+    this.PADDING,
+    641
+  );
+
+  this.context.stroke();
 
 }
 
@@ -491,7 +624,7 @@ Game.prototype.PartialRender = function() {
     }
   }
 
-  this.DrawHoverObject();
+  this.DrawHoverObject(this.activePosition);
 
 }
 
@@ -516,6 +649,8 @@ Game.prototype.Render = function() {
   // Clear all the sprites from the game screen 
   this.ClearGameScreen();
 
+  this.RenderInterface();
+
   // Render the visible part of the world map
   // In the 20x20 tiles visible screen area
   // and correct for the zoom level
@@ -533,7 +668,7 @@ Game.prototype.Render = function() {
   }
 
   // Draw the mouse object
-  this.DrawHoverObject();
+  this.DrawHoverObject(this.activePosition);
 
 }
 
@@ -550,22 +685,35 @@ Game.prototype.TilesetClick = function(event) {
 
 Game.prototype.LoadResourcesCallback = function() {
 
-  document.body.onmousedown = function() { 
-  	this.mouseDown = true;
-  }.bind(this);
-  
-  document.body.onmouseup = function() {
-  	this.mouseDown = false;
-  }.bind(this);
-
   document.getElementById("tileset-image").addEventListener("click", this.TilesetClick.bind(this));
 
   // Add the keyboard handler
   window.addEventListener("keydown", this.KeyEvent.bind(this));
 
   // Add the mouse handlers
-  this.canvas.addEventListener("mousemove", this.MoveEvent.bind(this));
-  this.canvas.addEventListener("click", this.ClickEvent.bind(this));
+  window.addEventListener("mousemove", this.MoveEvent.bind(this));
+
+  window.addEventListener("mousedown", this.MouseDownEvent.bind(this));
+  window.addEventListener("mouseup", this.MouseUpEvent.bind(this));
+
+}
+
+Game.prototype.MouseDownEvent = function(event) {
+
+  this.mouseDown = true;
+
+  var coordinates = this.GetCanvasCoordinates(event);
+
+  // Get the clicked component in the interface
+  this.clickedComponent = this.GetComponent(coordinates)
+
+}
+
+Game.prototype.MouseUpEvent = function(event) {
+
+  this.mouseDown = false;
+
+  this.clickedComponent = null;
 
 }
 
@@ -595,16 +743,31 @@ Game.prototype.Draw = function(id, position) {
     32 * this.zoomLevel,
     32 * this.zoomLevel
   );
-  
+
+}
+
+/* Function Game.PositionInViewport
+ * Returns Boolean whether a position is in the viewport
+ */
+Game.prototype.PositionInViewport = function(position) {
+
+  // Apply correction for zoom level
+  return (
+    (position.i < (this.viewport.i + (20 / this.zoomLevel))) &&
+    (position.j < (this.viewport.j + (20 / this.zoomLevel)))
+  );
+
 }
 
 /* Function Game.DrawHoverObject
  * Draws the bounding box and active object
  */
-Game.prototype.DrawHoverObject = function() {
+Game.prototype.DrawHoverObject = function(position) {
 
-  this.Draw(this.activeTileId, this.activePosition);
-  this.DrawSelectionRectangle(this.activePosition);
+  // If we are inside the viewport draw
+  if(this.PositionInViewport(position)) {
+    this.DrawSelectionRectangle(position);
+  }
 
 }
 
@@ -625,6 +788,13 @@ Game.prototype.GetPixelPosition = function(position) {
  * Draws the selection rectangle around the active tile
  */
 Game.prototype.DrawSelectionRectangle = function(position) {
+
+  const HOVER_ALPHA_VALUE = 0.5;
+
+  // Draw the phantom hover object with transparency
+  this.context.globalAlpha = HOVER_ALPHA_VALUE;
+  this.Draw(this.activeTileId, position);
+  this.context.globalAlpha = 1.0;
 
   var pixelPosition = this.GetPixelPosition(position);
 
