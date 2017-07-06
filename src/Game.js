@@ -286,18 +286,22 @@ Game.prototype.ChangePointer = function(type) {
   this.canvas.style.cursor = type;
 }
 
+/* Game.MoveViewportDrag
+ * Moves the viewport through handle bar drag
+ */
 Game.prototype.MoveViewportDrag = function(component) {
 
+  // Width of the slider
   const SLIDER_WIDTH = 64;
-  const SLIDER_INCREMENT = 1000 / (640 - SLIDER_WIDTH);
+  const SLIDER_INCREMENT = (1000 - (20 / this.zoomLevel)) / (640 - SLIDER_WIDTH);
 
   var coordinates = this.GetCanvasCoordinates(event);
-  var component = this.clickedComponent;
-
   var maximumViewport = this.GetMaximumViewportIndex();
 
+  // Dimension of the handle bar
   if(component === "verticalBar") {
 
+    // Handle is in the middle of the slider
     coordinates.y -= 0.5 * SLIDER_WIDTH;
 
     this.viewport.SetPosition(
@@ -307,6 +311,7 @@ Game.prototype.MoveViewportDrag = function(component) {
 
   } else if(component === "horizontalBar") {
 
+    // Handle is in the middle of the slider
     coordinates.x -= 0.5 * SLIDER_WIDTH;
 
     this.viewport.SetPosition(
@@ -336,11 +341,12 @@ Game.prototype.GetMaximumViewportIndex = function() {
  */
 Game.prototype.ClickEvent = function(event) {
   
-  var coordinates = this.GetCanvasCoordinates(event);
-
   if(this.clickedComponent === "horizontalBar" || this.clickedComponent === "verticalBar") {
-    this.MoveViewportDrag();
+    this.MoveViewportDrag(this.clickedComponent);
+    return;
   }
+
+  var coordinates = this.GetCanvasCoordinates(event);
 
   // Get the active index
   var index = this.activePosition.GetIndex();
@@ -490,7 +496,7 @@ Game.prototype.GetCanvasCoordinates = function(event) {
 
 }
 
-Game.prototype.SetSliderPosition = function() {
+Game.prototype.RenderSliderHandle = function() {
 
   // Correct for the zoom level
   var zoomLevelCorrection = 20 / this.zoomLevel;
@@ -499,6 +505,8 @@ Game.prototype.SetSliderPosition = function() {
   const SLIDER_INCREMENT = (640 - SLIDER_WIDTH) / (1000 - zoomLevelCorrection);
 
   this.context.fillStyle = "red";
+
+  // Render the horizontal bar
   this.context.fillRect(
     this.viewport.i * SLIDER_INCREMENT,
     640,
@@ -506,6 +514,7 @@ Game.prototype.SetSliderPosition = function() {
     this.PADDING
   );
 
+  // Render the vertical bar
   this.context.fillRect(
     640,
     this.viewport.j * SLIDER_INCREMENT,
@@ -515,6 +524,9 @@ Game.prototype.SetSliderPosition = function() {
 
 }
 
+/* Game.RenderInterface
+ * Renders the graphical user interface
+ */
 Game.prototype.RenderInterface = function() {
 
   this.context.beginPath();
@@ -528,7 +540,6 @@ Game.prototype.RenderInterface = function() {
   );
 
   this.context.stroke();
-  this.SetSliderPosition();
 
   this.context.beginPath();
 
@@ -541,6 +552,9 @@ Game.prototype.RenderInterface = function() {
   );
 
   this.context.stroke();
+
+  // 
+  this.RenderSliderHandle();
 
 }
 
@@ -776,18 +790,22 @@ Game.prototype.PositionInViewport = function(position) {
  */
 Game.prototype.DrawHoverObject = function(position) {
 
-  // If we are inside the viewport draw
-  if(this.PositionInViewport(position)) {
-    this.DrawSelectionRectangle(position);
-  }
+  this.DrawSelectionRectangle(position);
 
 }
 
 /* Function Game.GetPixelPosition
- * Returns the pixel position of a position class
- * corrected for the viewport and zoom level
+ * Returns the pixel position of a position class in
+ * world coordinates (i, j) corrected for the viewport 
+ * and zoom level
  */
 Game.prototype.GetPixelPosition = function(position) {
+
+  // If the position is not within
+  // the viewport return null
+  if(!this.PositionInViewport(position)) {
+    return null;
+  }
 
   return {
     "x": 32 * (position.i - this.viewport.i) * this.zoomLevel,
@@ -804,6 +822,12 @@ Game.prototype.DrawSelectionRectangle = function(position) {
   // Transparency value for hover
   const HOVER_ALPHA_VALUE = 0.5;
 
+  var pixelPosition = this.GetPixelPosition(position);
+
+  if(pixelPosition === null) {
+    return;
+  }
+
   // Draw the phantom hover object with transparency
   this.context.globalAlpha = HOVER_ALPHA_VALUE;
   this.Draw(this.activeTileId, position);
@@ -817,8 +841,8 @@ Game.prototype.DrawSelectionRectangle = function(position) {
   this.context.rect(
     0.5 + pixelPosition.x,
     0.5 + pixelPosition.y,
-    31 * this.zoomLevel,
-    31 * this.zoomLevel
+    32 * this.zoomLevel,
+    32 * this.zoomLevel
   );
 
   this.context.stroke();
