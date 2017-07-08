@@ -289,7 +289,7 @@ Game.prototype.ChangePointer = function(type) {
 /* Game.MoveViewportDrag
  * Moves the viewport through handle bar drag
  */
-Game.prototype.MoveViewportDrag = function(component) {
+Game.prototype.MoveViewportDrag = function(event) {
 
   // Width of the slider
   const SLIDER_WIDTH = 64;
@@ -299,7 +299,7 @@ Game.prototype.MoveViewportDrag = function(component) {
   var maximumViewport = this.GetMaximumViewportIndex();
 
   // Dimension of the handle bar
-  if(component === "verticalBar") {
+  if(this.clickedComponent === "verticalBar") {
 
     // Handle is in the middle of the slider
     coordinates.y -= 0.5 * SLIDER_WIDTH;
@@ -309,7 +309,7 @@ Game.prototype.MoveViewportDrag = function(component) {
       Math.floor(coordinates.y * SLIDER_INCREMENT).clamp(0, maximumViewport.j)
     );
 
-  } else if(component === "horizontalBar") {
+  } else if(this.clickedComponent === "horizontalBar") {
 
     // Handle is in the middle of the slider
     coordinates.x -= 0.5 * SLIDER_WIDTH;
@@ -342,7 +342,7 @@ Game.prototype.GetMaximumViewportIndex = function() {
 Game.prototype.ClickEvent = function(event) {
   
   if(this.clickedComponent === "horizontalBar" || this.clickedComponent === "verticalBar") {
-    this.MoveViewportDrag(this.clickedComponent);
+    this.MoveViewportDrag(event);
     return;
   }
 
