@@ -15,6 +15,12 @@ var Game = function() {
 
   this.context = this.canvas.getContext("2d");
 
+  this.inventoryCanvas = document.getElementById("gameInventoryCanvas");
+  this.inventoryCanvas.height = this.canvas.height;
+  this.inventoryCanvas.width = 62;
+
+  this.inventoryContext = this.inventoryCanvas.getContext("2d");  
+  
   // Create the viewport
   this.viewport = new Position(0, 0);
   this.activePosition = new Position(0, 0);
@@ -22,6 +28,7 @@ var Game = function() {
   this.activeTileId = null;
 
   this.bounds = this.canvas.getBoundingClientRect();
+  this.inventoryBounds = this.inventoryCanvas.getBoundingClientRect();
 
   // The world map array is one-dimensional of length
   // width * height.
@@ -42,6 +49,53 @@ var Game = function() {
 
   this.Init();
 
+}
+
+/* Game.GetClickedInventoryObject
+ * Returns the clicked object from inventory
+ */
+Game.prototype.GetClickedInventoryObject = function(event) {
+
+  // Only depends on the y-coordinates of the canvas
+  var canvasCoordinates = this.GetCanvasCoordinates(event);
+  var index = Math.floor(canvasCoordinates.y / 32);
+  
+  this.activeTileId = INVENTORY[index] || null;
+  
+}
+
+Game.prototype.InitInventory = function() {
+
+  this.DrawInventory();
+  
+}
+
+/* Game.DrawInventory
+ * Draws the object inventory of the editor
+ * corrected for the viewport
+ */
+Game.prototype.DrawInventory = function() {
+
+  var offset = 0;
+  
+  for(var i = offset; i < INVENTORY.length; i++) {
+	  
+    var object = INVENTORY[i];
+
+    this.inventoryContext.drawImage(
+      this.resources.tileset,
+      object.x,
+      object.y,
+      32,
+      32,
+      0,
+      i * 32,
+      32,
+      32
+    );
+	
+  }
+  
 }
 
 /* Game.Init
@@ -174,8 +228,18 @@ Game.prototype.IncrementViewport = function(i, j) {
   
 }
 
-Game.prototype.GetComponent = function(canvasCoordinates) {
+Game.prototype.GetInventoryComponent = function(canvasCoordinates) {
 
+  if(canvasCoordinates.y > 42) {
+    return "verticalInventoryBar";
+  } else {
+    return "inventoryWindow";
+  }
+  
+}
+
+Game.prototype.GetComponent = function(canvasCoordinates) {
+  
   if(canvasCoordinates.y > 640) {
     return "horizontalBar";
   } else if(canvasCoordinates.x > 640) {
@@ -339,6 +403,9 @@ Game.prototype.MoveViewportDrag = function(event) {
       null
     );
 
+  } else if(this.clickedComponent == "verticalInventoryBar") {
+	  
+	  
   }
 
 }
@@ -510,6 +577,20 @@ Game.prototype.GetGameCoordinates = function(event) {
  * Function Game.GetCanvasCoordinates
  * Returns the x, y position in canvas coordinates
  */
+Game.prototype.GetInventoryCoordinates = function(event) {
+
+  // Correct for the canvas position
+  return {
+    "x": event.pageX - this.inventoryBounds.left,
+    "y": event.pageY - this.inventoryBounds.top
+  }
+
+}
+
+/*
+ * Function Game.GetCanvasCoordinates
+ * Returns the x, y position in canvas coordinates
+ */
 Game.prototype.GetCanvasCoordinates = function(event) {
 
   // Correct for the canvas position
@@ -552,11 +633,40 @@ Game.prototype.RenderSliderHandle = function() {
 
 }
 
+Game.prototype.RenderInventory = function() {
+	
+  const SLIDER_WIDTH = 64;
+  this.inventoryContext.beginPath();
+
+  // Use half pixels to prevent aliasing effects
+  this.inventoryContext.rect(
+    42,
+    0 - 0.5,
+    42,
+    660 + 0.5
+  );
+
+  this.inventoryContext.stroke();
+  
+  this.inventoryContext.fillStyle = "red";
+
+  // Render the vertical bar
+  this.inventoryContext.fillRect(
+    42,
+    0,
+    62,
+    SLIDER_WIDTH
+  ); 
+  
+}
+
 /* Game.RenderInterface
  * Renders the graphical user interface
  */
 Game.prototype.RenderInterface = function() {
 
+  this.RenderInventory();
+  
   this.context.beginPath();
 
   // Use half pixels to prevent aliasing effects
@@ -727,23 +837,11 @@ Game.prototype.Render = function() {
 
 }
 
-Game.prototype.TilesetClick = function(event) {
-
-  var img = document.getElementById("tileset-image");
-
-  var x = Math.floor((event.pageX - img.offsetLeft) / 32);
-  var y = Math.floor((event.pageY - img.offsetTop) / 32);
-   
-  this.activeTileId = x + (y * 32);
-  
-}
 
 /* Game.LoadResourcesCallback
  * Fires when all resources are loaded
  */
 Game.prototype.LoadResourcesCallback = function() {
-
-  document.getElementById("tileset-image").addEventListener("click", this.TilesetClick.bind(this));
 
   // Add the keyboard handler
   window.addEventListener("keydown", this.KeyEvent.bind(this));
@@ -756,6 +854,12 @@ Game.prototype.LoadResourcesCallback = function() {
   
   window.addEventListener("wheel", this.ScrollEvent.bind(this));
 
+  // Add handler for the inventory canvas
+  this.inventoryCanvas.addEventListener("mousedown", this.GetClickedInventoryObject.bind(this));
+  
+  this.InitInventory();
+  this.Render();
+  
 }
 
 /* Game.ScrollEvent
@@ -788,8 +892,13 @@ Game.prototype.MouseDownEvent = function(event) {
   this.mouseDown = true;
   
   // Get the clicked component in the interface
-  var coordinates = this.GetCanvasCoordinates(event);
-  this.clickedComponent = this.GetComponent(coordinates)
+  if(event.target.id === "gameScreenCanvas") {
+    this.clickedComponent = this.GetComponent(this.GetCanvasCoordinates(event));
+  } else if(event.target.id === "gameInventoryCanvas") {
+   this.clickedComponent = this.GetInventoryComponent(this.GetInventoryCoordinates(event));
+  } else {
+    this.clickedComponent = null;  
+  }
   
   // Propagate to the click event
   this.ClickEvent(event);
@@ -810,22 +919,19 @@ Game.prototype.MouseUpEvent = function(event) {
 /* Function Game.Draw
  * Draws object to canvas
  */
-Game.prototype.Draw = function(id, position) {
+Game.prototype.Draw = function(object, position) {
 
-  if(id === null) {
+  if(object === null) {
     return;
   }
 
   var pixelPosition = this.GetPixelPosition(position);
 
-  var xSprite = (id % 32) * 32;
-  var ySprite = Math.floor(id / 32) * 32;
-
   // Draw the image and correct for the zoom level
   this.context.drawImage(
     this.resources.tileset,
-    xSprite,
-    ySprite,
+    object.x,
+    object.y,
     32,
     32,
     pixelPosition.x,
@@ -842,9 +948,11 @@ Game.prototype.Draw = function(id, position) {
 Game.prototype.PositionInViewport = function(position) {
 
   var zoomLevelCorrection = this.GetZoomLevelCorrection();
-  
+
   // Apply correction for zoom level
   return (
+    (position.i > -1) &&
+	(position.j > -1) &&
     (position.i < (this.viewport.i + zoomLevelCorrection)) &&
     (position.j < (this.viewport.j + zoomLevelCorrection))
   );

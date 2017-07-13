@@ -8,3 +8,9 @@ canvas {
   width: 660px;
   height: 660px;
 }
+
+#gameInventoryCanvas {
+  border: 1px solid black;
+  width: 62px;
+  height: 660px;
+}

@@ -1,13 +1,11 @@
-var OBJECTS = [{
+var INVENTORY = [{
+  "image": "tileset",
   "id": 14,
-  "tile": true
+  "x": 0,
+  "y": 0
 }, {
-  "id": 15,
-  "tile": true
-}, {
-  "id": 17,
-  "tile": true
-}, {
-  "id": 18,
-  "tile": true
+  "image": "tileset",
+  "id": 14,
+  "x": 0,
+  "y": 0
 }];
