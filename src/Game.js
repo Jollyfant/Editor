@@ -59,14 +59,45 @@ Game.prototype.GetClickedInventoryObject = function(event) {
   // Only depends on the y-coordinates of the canvas
   var canvasCoordinates = this.GetCanvasCoordinates(event);
   var index = Math.floor(canvasCoordinates.y / 32);
-  
-  this.activeTileId = INVENTORY[index] || null;
+
+  this.activeTileId = this.objectInventory[index] || null;
   
 }
 
 Game.prototype.InitInventory = function() {
 
+  this.CreateInventory();
   this.DrawInventory();
+  
+}
+
+/* Game.CreateInventory
+ * Adds all objects to the inventory
+ */
+Game.prototype.CreateInventory = function() {
+
+  var object, nSprites;
+  
+  this.objectInventory = new Array();
+  
+  // Add all resources to the object inventory
+  for(var i = 0; i < this.resourceLoadChain.length; i++) {
+	
+	object = this.resourceLoadChain[i];
+	nSprites = object.lastspriteid - object.firstspriteid;
+	
+	// Add all the sprites in the sprite sheet to the inventory
+    for(var j = 0; j < nSprites; j++) {
+		
+		// New sprite to inventory
+		// Make sure to pass the index in the sprite sheet
+        this.objectInventory.push(
+		  new Sprite(object, j)
+		)
+		
+	}
+  
+  }
   
 }
 
@@ -76,25 +107,25 @@ Game.prototype.InitInventory = function() {
  */
 Game.prototype.DrawInventory = function() {
 
-  var offset = 0;
-  
-  for(var i = offset; i < INVENTORY.length; i++) {
+  for(var i = 0; i < 20; i++) {
 	  
-    var object = INVENTORY[i];
+	  var object = this.objectInventory[i];
 
-    this.inventoryContext.drawImage(
-      this.resources.tileset,
-      object.x,
-      object.y,
-      32,
-      32,
-      0,
-      i * 32,
-      32,
-      32
-    );
-	
-  }
+	this.inventoryContext.drawImage(
+		this.resources[object.resource],
+		object.x,
+		object.y,
+		32,
+		32,
+		0,
+		i * 32,
+		32,
+		32
+	);
+		  
+		
+	}
+
   
 }
 
@@ -428,11 +459,11 @@ Game.prototype.GetMaximumViewportIndex = function() {
  */
 Game.prototype.ClickEvent = function(event) {
   
-  if(this.clickedComponent === "horizontalBar" || this.clickedComponent === "verticalBar") {
+  if(this.clickedComponent === "horizontalBar" || this.clickedComponent === "verticalBar" || this.clickedComponent === "verticalInventoryBar") {
     this.MoveViewportDrag(event);
     return;
   }
-
+  
   var coordinates = this.GetCanvasCoordinates(event);
 
   // Get the active index
@@ -704,11 +735,11 @@ Game.prototype.LoadResources = function() {
   this.nResourcesLoaded = 0;
 
   // Determine the resource load chain
-  this.resourceLoadChain = [{
-    "id": "tileset",
-    "src": "tileset.png",
-    "type": "image"
-  }];
+
+  this.resourceLoadChain = [
+	CATALOG_CONTENT[2],
+	CATALOG_CONTENT[3]
+  ];
 
   var self = this;
 
@@ -717,14 +748,13 @@ Game.prototype.LoadResources = function() {
 
     (function(resource) {
 
-      var src = "./resources/" + resource.src;
-
+      var src = "./sprites/" + resource.file + ".lzma.bmp";
+	
       var image = new Image();
       image.src = src;
-
       image.onload = function() {
 
-        self.resources[resource.id] = image;
+        self.resources[resource.file] = image;
 
         if(++self.nResourcesLoaded >= self.resourceLoadChain.length) {
           self.LoadResourcesCallback();
@@ -929,11 +959,11 @@ Game.prototype.Draw = function(object, position) {
 
   // Draw the image and correct for the zoom level
   this.context.drawImage(
-    this.resources.tileset,
+    this.resources[object.resource],
     object.x,
     object.y,
-    32,
-    32,
+    object.width,
+    object.height,
     pixelPosition.x,
     pixelPosition.y,
     32 * this.zoomLevel,
