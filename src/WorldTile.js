@@ -7,12 +7,12 @@ var WorldTile = function(position) {
 
 }
 
-WorldTile.prototype.Add = function(id) {
+WorldTile.prototype.Add = function(gameObject) {
 
   var stackPosition = this.objects.length;
 
   this.objects.push(
-    new TileObject(id, stackPosition)
+    new TileObject(gameObject, stackPosition)
   );
 
 }

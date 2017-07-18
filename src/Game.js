@@ -94,7 +94,7 @@ Game.prototype.GetClickedInventoryObject = function(event) {
   var index = Math.floor(canvasCoordinates.y / 32) + this.inventoryViewport.j;
 
   this.activeTileId = this.objectInventory[index] || null;
-  
+  console.log(this.activeTileId)
 }
 
 /* Game.InitInventory
@@ -115,29 +115,16 @@ Game.prototype.InitInventory = function() {
  */
 Game.prototype.CreateInventory = function() {
 
-  var object, nSprites, inventoryPointer;
+  this.objectInventory = new Array();
   
-  // Create a pointer usable in the forEach scope
-  this.objectInventory = inventoryPointer = new Array();
-  
-  // Add all resources to the object inventory
-  this.resourceLoadChain.forEach(function(object) {
+  for(var i = 0; i < 2500; i++) {
+    
+    this.objectInventory.push(
+	  new GameObject(APPEARANCES.object[i])
+	);
+	
+  }
 
-    // The number of sprites in the sheet
-    nSprites = 1 + (object.lastspriteid - object.firstspriteid);
-
-    // Add all the sprites in the sprite sheet to the inventory
-    for(var i = 0; i < nSprites; i++) {
-
-      // Create a new sprite
-      // Make sure to pass the index in the sprite sheet
-      inventoryPointer.push(
-        new Sprite(object, i)
-      )
-		
-    }
-  
-  });
   
 }
 
@@ -169,6 +156,8 @@ Game.prototype.RenderInventoryContent = function() {
       i + this.inventoryViewport.j
     );
 
+	object = object.sprites[0];
+	
     // Draw the sprite to the inventory
     this.inventoryContext.drawImage(
       this.resources[object.resource],
@@ -936,32 +925,32 @@ Game.prototype.RenderInterface = function() {
  * Asynchronously loads the required resources
  */
 Game.prototype.LoadResources = function() {
-
+  
   this.resources = new Object();
   this.nResourcesLoaded = 0;
 
   // Determine the resource load chain
 
-  this.resourceLoadChain = [
-    CATALOG_CONTENT[1]
-  ];
-
+  this.resourceLoadChain = new Array();
+  
+  this.resourceLoadChain = CATALOG_CONTENT;
+  
   var self = this;
 
   // Asynchronous but concurrent loading of resources
-  for(var i = 0; i < this.resourceLoadChain.length; i++) {
+  for(var i = 1; i < this.resourceLoadChain.length; i++) {
 
     (function(resource) {
 
-      var src = "./sprites/" + resource.file;
-	
+      var src = "./sprites/" + resource.file + ".lzma.bmp";
+
       var image = new Image();
       image.src = src;
       image.onload = function() {
 
         self.resources[resource.file] = image;
 
-        if(++self.nResourcesLoaded >= self.resourceLoadChain.length) {
+        if(++self.nResourcesLoaded >= self.resourceLoadChain.length - 1) {
           self.LoadResourcesCallback();
         }
       }
@@ -1188,20 +1177,28 @@ Game.prototype.Draw = function(object, position) {
   if(object === null) {
     return;
   }
-
+	
   var pixelPosition = this.GetPixelPosition(position);
+  
+  if(object.animated) {
+    var spriteIndex = (object.sprites.length + this.frameNumber) % object.sprites.length;
+  } else {
+	var spriteIndex = (position.i % object.pattern.width) + object.pattern.width * (position.j % object.pattern.height);
+  }
+  
+  var sprite = object.sprites[spriteIndex];
 
   // Draw the image and correct for the zoom level
   this.context.drawImage(
-    this.resources[object.resource],
-    object.x + 32 * (this.frameNumber % 6),
-    object.y,
-    object.width,
-    object.height,
+    this.resources[sprite.resource],
+    sprite.x,
+    sprite.y,
+    sprite.width,
+    sprite.height,
     pixelPosition.x,
     pixelPosition.y,
-    32 * this.zoomLevel,
-    32 * this.zoomLevel
+    sprite.width * this.zoomLevel,
+    sprite.height * this.zoomLevel
   );
 
 }

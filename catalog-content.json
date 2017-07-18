@@ -6,14 +6,6 @@ var CATALOG_CONTENT = [
 },
 {
   "type":"sprite",
-  "file":"sprites-8b3ded29f68c0d289f9b72273ca48f00798bfceda7.png",
-  "spritetype":0,
-  "firstspriteid":0,
-  "lastspriteid":144,
-  "area":0
-},
-{
-  "type":"sprite",
   "file":"sprites-d9c9d71ce6f08f29c01dae1caebdb430c90983c86d48ecd190aa2bedf4e37c75.bmp",
   "spritetype":0,
   "firstspriteid":1,

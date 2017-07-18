@@ -1,9 +1,11 @@
-var Sprite = function(sprite, index) {
+var Sprite = function(sprite, spriteId) {
 	
   var xScale, yScale;
+  
+  var spriteIndex = spriteId - sprite.firstspriteid;
 	
   this.resource = sprite.file;
-
+	
   // The sprite type determines the size
   // of a sprite.
   switch(sprite.spritetype) {
@@ -34,10 +36,13 @@ var Sprite = function(sprite, index) {
     
     }
 
+	// Number of sprites in a row
+	var spritesInRow = (12 / xScale);
+
     // Set the x, y position on the sprite sheet
-    // and record the sprite width & height
-    this.x = 32 * xScale * (index % (12 / xScale));
-    this.y = 32 * yScale * (Math.floor(index / (12 / yScale)));
+    // and record the sprite width & height	
+    this.x = 32 * xScale * (spriteIndex % spritesInRow);
+    this.y = 32 * yScale * (Math.floor(spriteIndex / spritesInRow));
     this.width = 32 * xScale;
     this.height = 32 * yScale;
 	
