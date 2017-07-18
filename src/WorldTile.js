@@ -7,15 +7,16 @@ var WorldTile = function(position) {
 
 }
 
-WorldTile.prototype.Add = function(gameObject) {
+WorldTile.prototype.Add = function(id) {
 
   var stackPosition = this.objects.length;
 
   this.objects.push(
-    new TileObject(gameObject, stackPosition)
+    new TileObject(id, stackPosition)
   );
 
 }
+
 /*
  * Public Function WorldTitle.HasGroundObject
  * Returns index of ground tile or null

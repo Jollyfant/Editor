@@ -1,7 +1,7 @@
 var Sprite = function(sprite, spriteId) {
 	
   var xScale, yScale;
-  
+
   var spriteIndex = spriteId - sprite.firstspriteid;
 	
   this.resource = sprite.file;

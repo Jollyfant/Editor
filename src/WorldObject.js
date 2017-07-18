@@ -26,7 +26,7 @@ var GameObject = function(object) {
   for(var i = 0; i < spriteInfo.spriteId.length; i++) {
 
     spriteId = spriteInfo.spriteId[i];
-	 
+	
 	catalogueEntry = this.GetCatalogueEntry(spriteId);
 
     this.sprites.push(
@@ -55,5 +55,7 @@ GameObject.prototype.GetCatalogueEntry = function(objectId) {
 	}
 	
   }
+  
+  return CATALOG_CONTENT[CATALOG_CONTENT.length - 1];
 	
 }

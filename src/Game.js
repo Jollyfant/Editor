@@ -116,8 +116,8 @@ Game.prototype.InitInventory = function() {
 Game.prototype.CreateInventory = function() {
 
   this.objectInventory = new Array();
-  
-  for(var i = 0; i < 2500; i++) {
+
+  for(var i = 0; i < APPEARANCES.object.length; i++) {
     
     this.objectInventory.push(
 	  new GameObject(APPEARANCES.object[i])
@@ -1180,10 +1180,11 @@ Game.prototype.Draw = function(object, position) {
 	
   var pixelPosition = this.GetPixelPosition(position);
   
+
+  var spriteIndex = (position.i % object.pattern.width) + object.pattern.width * (position.j % object.pattern.height);
+
   if(object.animated) {
-    var spriteIndex = (object.sprites.length + this.frameNumber) % object.sprites.length;
-  } else {
-	var spriteIndex = (position.i % object.pattern.width) + object.pattern.width * (position.j % object.pattern.height);
+	spriteIndex = (spriteIndex + this.frameNumber) % (object.sprites.length - 1);  
   }
   
   var sprite = object.sprites[spriteIndex];
