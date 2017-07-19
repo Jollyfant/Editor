@@ -1185,7 +1185,7 @@ Game.prototype.Draw = function(object, position, elevation) {
   }
   
   var sprite = object.sprites[spriteIndex];
-  
+
   // Draw the image and correct for the zoom level,
   // sprite size, and object elevation
   this.context.drawImage(
@@ -1194,8 +1194,8 @@ Game.prototype.Draw = function(object, position, elevation) {
     sprite.y,
     sprite.width,
     sprite.height,
-    pixelPosition.x - elevation - sprite.width + 32,
-    pixelPosition.y - elevation - sprite.height + 32,
+    pixelPosition.x + (32 - sprite.width - elevation) * this.zoomLevel,
+    pixelPosition.y + (32 - sprite.height - elevation) * this.zoomLevel,
     sprite.width * this.zoomLevel,
     sprite.height * this.zoomLevel
   );
