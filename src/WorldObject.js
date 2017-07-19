@@ -16,6 +16,8 @@ var GameObject = function(object) {
 	"height": spriteInfo.patternHeight
   }
   
+  this.elevation = object.flags.height ? object.flags.height.elevation : 0;
+  
   this.sprites = new Array();
   
   var sprites = object.frameGroup[0].spriteInfo.spriteId;

@@ -27,7 +27,7 @@ var Game = function() {
   this.inventoryViewport = new Position(0, 0);
   this.activePosition = new Position(0, 0);
   
-  this.activeTileId = null;
+  this.activeGameObject = null;
 
   this.bounds = this.canvas.getBoundingClientRect();
   this.inventoryBounds = this.inventoryCanvas.getBoundingClientRect();
@@ -93,8 +93,8 @@ Game.prototype.GetClickedInventoryObject = function(event) {
   var canvasCoordinates = this.GetRelativeCoordinates(event);
   var index = Math.floor(canvasCoordinates.y / 32) + this.inventoryViewport.j;
 
-  this.activeTileId = this.objectInventory[index] || null;
-  console.log(this.activeTileId)
+  this.activeGameObject = this.objectInventory[index] || null;
+  console.log(this.activeGameObject)
 }
 
 /* Game.InitInventory
@@ -381,7 +381,7 @@ Game.prototype.ToggleMove = function() {
   this.moving = !this.moving;
 
   if(this.moving) {
-    this.activeTileId = null;
+    this.activeGameObject = null;
     this.ChangePointer("move");
   } else {
     this.ChangePointer("default");
@@ -394,7 +394,7 @@ Game.prototype.ToggleDelete = function() {
   this.deleting = !this.deleting;
 
   if(this.deleting) {
-    this.activeTileId = null;
+    this.activeGameObject = null;
     this.ChangePointer("not-allowed");
   } else {
     this.ChangePointer("default");
@@ -579,7 +579,7 @@ Game.prototype.ClickEvent = function(event) {
   } else if(this.moving) {
 
     if(this.worldMapTiles[index] !== undefined) {
-      this.activeTileId = this.worldMapTiles[index].objects.pop().id;
+      this.activeGameObject = this.worldMapTiles[index].objects.pop().id;
       this.moving = !this.moving;
     }
 
@@ -589,12 +589,12 @@ Game.prototype.ClickEvent = function(event) {
       this.worldMapTiles[index] = new WorldTile(this.activePosition);
     }
 
-    this.AddTileObject(index, this.activeTileId);
+    this.AddTileObject(index, this.activeGameObject);
 
     // Push to the command buffer
     this.undoCommandMemoryBuffer.push(
       new Command(
-        this.activeTileId,
+        this.activeGameObject,
         index,
         "place"
       )
@@ -617,16 +617,11 @@ var Command = function(id, tile, type) {
 /* Game.AddTileObject
  * Adds a tile object to the tile
  */
-Game.prototype.AddTileObject = function(index, id) {
+Game.prototype.AddTileObject = function(index, gameObject) {
 
   var worldMapTile = this.worldMapTiles[index];
 
-  var groundTileIndex = worldMapTile.HasGroundObject();
-
-  // Only add ground tile if it does not exist
-  if(groundTileIndex === null) {
-    worldMapTile.Add(id);
-  }
+  worldMapTile.Add(gameObject);
 
   // Sort by the stack position
   // Ground tiles always go below objects
@@ -942,7 +937,7 @@ Game.prototype.LoadResources = function() {
 
     (function(resource) {
 
-      var src = "./sprites/" + resource.file + ".lzma.bmp";
+      var src = "./sprites/" + resource.file + ".lzma.png";
 
       var image = new Image();
       image.src = src;
@@ -1172,15 +1167,17 @@ Game.prototype.MouseUpEvent = function(event) {
 /* Function Game.Draw
  * Draws object to canvas
  */
-Game.prototype.Draw = function(object, position) {
+Game.prototype.Draw = function(object, position, elevation) {
 
+  // Default elevation of 0
+  elevation = elevation || 0;
+  
   if(object === null) {
     return;
   }
 	
   var pixelPosition = this.GetPixelPosition(position);
   
-
   var spriteIndex = (position.i % object.pattern.width) + object.pattern.width * (position.j % object.pattern.height);
 
   if(object.animated) {
@@ -1188,16 +1185,17 @@ Game.prototype.Draw = function(object, position) {
   }
   
   var sprite = object.sprites[spriteIndex];
-
-  // Draw the image and correct for the zoom level
+  
+  // Draw the image and correct for the zoom level,
+  // sprite size, and object elevation
   this.context.drawImage(
     this.resources[sprite.resource],
     sprite.x,
     sprite.y,
     sprite.width,
     sprite.height,
-    pixelPosition.x,
-    pixelPosition.y,
+    pixelPosition.x - elevation - sprite.width + 32,
+    pixelPosition.y - elevation - sprite.height + 32,
     sprite.width * this.zoomLevel,
     sprite.height * this.zoomLevel
   );
@@ -1266,7 +1264,7 @@ Game.prototype.DrawSelectionRectangle = function(position) {
 
   // Draw the phantom hover object with transparency
   this.context.globalAlpha = HOVER_ALPHA_VALUE;
-  this.Draw(this.activeTileId, position);
+  this.Draw(this.activeGameObject, position);
   this.context.globalAlpha = 1.0;
 
   var pixelPosition = this.GetPixelPosition(position);
@@ -1290,13 +1288,30 @@ Game.prototype.DrawSelectionRectangle = function(position) {
  */
 Game.prototype.DrawWorldTile = function(worldTile) {
 
+  const MAXIMUM_ELEVATION = 24;
+  
   if(worldTile === null) {
     return;
   }
 
   // Draw all objects on the tile
+  // and correct for item elevations
+  var elevation = 0;
+  
   worldTile.objects.forEach(function(tileObject) {
-    this.Draw(tileObject.id, worldTile.position);
+
+    this.Draw(
+	  tileObject.gameObjectPointer,
+	  worldTile.position,
+	  elevation
+	);
+
+	// Keep track of the tile elevation
+	elevation = Math.min(
+	  elevation + tileObject.gameObjectPointer.elevation,
+	  MAXIMUM_ELEVATION
+	);
+	
   }, this);
 
 }

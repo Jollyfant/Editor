@@ -1,9 +1,16 @@
-var TileObject = function(id, stackPosition) {
+/* Public Class TileObject
+ * Container for an object on a tile
+ *
+ * Tile objects point to game object
+ * and have some additional metadata
+ */
+var TileObject = function(gameObject, stackPosition) {
 
-  this.id = id;
+  // Point to a particular game object
+  this.gameObjectPointer = gameObject;
+  
+  // Stack position of object
   this.stackPosition = stackPosition;
-
-  this.ground = false;
 
 }
 
