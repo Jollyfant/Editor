@@ -4,13 +4,23 @@
  * Tile objects point to game object
  * and have some additional metadata
  */
-var TileObject = function(gameObject, stackPosition) {
+var TileObject = function(gameObject) {
 
   // Point to a particular game object
   this.gameObjectPointer = gameObject;
   
-  // Stack position of object
-  this.stackPosition = stackPosition;
+  if(gameObject.cumulative) {
+    this.count = Math.floor(Math.random() * 8);
+  }
+
+  // Set the stack position of the object
+  if(gameObject.ground) {
+    this.stackPosition = 0;
+  } else if(gameObject.unsight) {
+    this.stackPosition = 0;
+  } else {
+    this.stackPosition = 1;
+  }
 
 }
 

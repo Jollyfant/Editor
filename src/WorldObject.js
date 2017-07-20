@@ -16,6 +16,18 @@ var GameObject = function(object) {
 	"height": spriteInfo.patternHeight
   }
   
+  if(object.flags.cumulative) {
+    this.cumulative = true;
+  }
+	
+  if(object.flags.unsight) {
+    this.unsight = true;
+  }
+
+  if(object.flags.bank && object.flags.bank.waypoints) {
+    this.ground = true;
+  }
+
   this.elevation = object.flags.height ? object.flags.height.elevation : 0;
   
   this.sprites = new Array();

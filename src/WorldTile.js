@@ -9,12 +9,16 @@ var WorldTile = function(position) {
 
 WorldTile.prototype.Add = function(gameObject) {
 
-  var stackPosition = this.objects.length;
-
   // Add a new object to a tile
   this.objects.push(
-    new TileObject(gameObject, stackPosition)
+    new TileObject(gameObject)
   );
+
+}
+
+WorldTile.prototype.Replace = function(gameObject, index) {
+
+  this.objects[index] = new TileObject(gameObject);
 
 }
 
@@ -24,8 +28,9 @@ WorldTile.prototype.Add = function(gameObject) {
  */
 WorldTile.prototype.HasGroundObject = function() {
 
+  // Ground tile has stackPosition 0
   for(var i = 0; i < this.objects.length; i++) {
-    if(this.objects[i].ground) {
+    if(this.objects[i].stackPosition === 0) {
       return i;
     }
   }

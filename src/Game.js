@@ -3,9 +3,17 @@
  */
 var Game = function() {
 
+  this.APPLICATION_VERSION = "0.0.0";
+
   // World map settings
   this.WORLD_MAP_WIDTH = 1000;
   this.WORLD_MAP_HEIGHT = 1000;
+  this.WORLD_MAP_DEPTH = 10;
+
+  this.timeInitialized = new Date();
+
+  this.information = document.getElementById("properties");
+
   this.PADDING = 20;
 
   // Get the canvas and context
@@ -18,15 +26,16 @@ var Game = function() {
   // Get the inventory context
   this.inventoryCanvas = document.getElementById("gameInventoryCanvas");
   this.inventoryCanvas.height = 640;
-  this.inventoryCanvas.width = 62;
+  this.inventoryCanvas.width = 320 + this.PADDING;
 
   this.inventoryContext = this.inventoryCanvas.getContext("2d");  
   
   // Create the viewport
-  this.viewport = new Position(0, 0);
-  this.inventoryViewport = new Position(0, 0);
-  this.activePosition = new Position(0, 0);
+  this.viewport = new Position(0, 0, 0);
+  this.inventoryViewport = new Position(0, 0, 0);
+  this.activePosition = new Position(0, 0, 0);
   
+  this.activeLayer = 0;
   this.activeGameObject = null;
 
   this.bounds = this.canvas.getBoundingClientRect();
@@ -35,7 +44,7 @@ var Game = function() {
   // The world map array is one-dimensional of length
   // width * height.
   this.worldMapTiles = new Array(
-    this.WORLD_MAP_WIDTH * this.WORLD_MAP_HEIGHT
+    this.WORLD_MAP_WIDTH * this.WORLD_MAP_HEIGHT * this.WORLD_MAP_DEPTH
   );
 
   this.zoomLevel = 1;
@@ -90,11 +99,11 @@ Game.prototype.IncrementAnimationFrame = function(x) {
 Game.prototype.GetClickedInventoryObject = function(event) {
 
   // Only depends on the y-coordinates of the canvas
-  var canvasCoordinates = this.GetRelativeCoordinates(event);
-  var index = Math.floor(canvasCoordinates.y / 32) + this.inventoryViewport.j;
+  var canvasCoordinates = this.GetInventoryCoordinates(event);
+  var index = 10 * (Math.floor(canvasCoordinates.y / 32) + this.inventoryViewport.j) + Math.floor(canvasCoordinates.x / 32);
 
   this.activeGameObject = this.objectInventory[index] || null;
-  console.log(this.activeGameObject)
+
 }
 
 /* Game.InitInventory
@@ -120,8 +129,8 @@ Game.prototype.CreateInventory = function() {
   for(var i = 0; i < APPEARANCES.object.length; i++) {
     
     this.objectInventory.push(
-	  new GameObject(APPEARANCES.object[i])
-	);
+      new GameObject(APPEARANCES.object[i])
+    );
 	
   }
 
@@ -145,31 +154,35 @@ Game.prototype.RenderInventoryContent = function() {
 
   const NUMBER_OF_SPRITES_IN_WINDOW = 20;
 
-  var object;
+  var object, sprite;
 
   // We draw 20 sprites
   for(var i = 0; i < NUMBER_OF_SPRITES_IN_WINDOW; i++) {
 
-    // Get the object from the inventory
-    // and correct for the inventory viewport
-    object = this.GetInventoryObject(
-      i + this.inventoryViewport.j
-    );
+    for(var j = 0; j < 10; j++) {
 
-	object = object.sprites[0];
-	
-    // Draw the sprite to the inventory
-    this.inventoryContext.drawImage(
-      this.resources[object.resource],
-      object.x,
-      object.y,
-      32,
-      32,
-      0,
-      32 * i,
-      32,
-      32
-    );
+      // Get the object from the inventory
+      // and correct for the inventory viewport
+      object = this.GetInventoryObject(
+        j + (10 * i) + this.inventoryViewport.j * 10
+      );
+
+      sprite = object.sprites[0];
+          
+      // Draw the sprite to the inventory
+      this.inventoryContext.drawImage(
+        this.resources[sprite.resource],
+        sprite.x,
+        sprite.y,
+        sprite.width,
+        sprite.height,
+        32 * j,
+        32 * i,
+        32,
+        32
+      );
+
+    }
 
   }
   
@@ -180,12 +193,18 @@ Game.prototype.RenderInventoryContent = function() {
  */
 Game.prototype.Init = function() {
 
+  this.SetInfo("Initializing application ...");
+
   // Load all resources to memory
   this.LoadResources();
 
   // Initialize sprite animations
   this.InitAnimation(); 
 
+}
+
+Game.prototype.SetInfo = function(str) {
+  this.information.innerHTML = str;
 }
 
 // Encodes the worldMapObject to JSON
@@ -274,13 +293,13 @@ Game.prototype.KeyEvent = function(event) {
     // Zoom in
     case ZOOM_PLUS:
     case ZOOM_PLUS_OSX:
-      this.ZoomByFactor(2);
+      this.activeLayer = Math.min(this.activeLayer + 1, 10);
       break;
 
     // Zoom out
     case ZOOM_MINUS:
     case ZOOM_MINUS_OSX:
-      this.ZoomByFactor(0.5);
+      this.activeLayer = Math.max(this.activeLayer - 1, 0);
       break;
 
   }
@@ -328,7 +347,7 @@ Game.prototype.IncrementViewport = function(i, j) {
  */
 Game.prototype.GetInventoryComponent = function(canvasCoordinates) {
 
-  if(canvasCoordinates.x > 42) {
+  if(canvasCoordinates.x > 320) {
     return new Component("inventoryHandleV")
   } else {
     return new Component("inventoryWindow");
@@ -466,7 +485,7 @@ Game.prototype.MoveInventory = function(event) {
   // Width of the slider
   const SLIDER_WIDTH = 64;
 
-  var sliderIncrement = (this.objectInventory.length - 21) / (this.inventoryCanvas.height - SLIDER_WIDTH);
+  var sliderIncrement = ((this.objectInventory.length / 10) - 21) / (this.inventoryCanvas.height - SLIDER_WIDTH);
   var coordinates = this.GetRelativeCoordinates(event);
 
   // Grab in middle of handle
@@ -475,7 +494,7 @@ Game.prototype.MoveInventory = function(event) {
   // Update the viewport
   this.inventoryViewport.SetPosition(
     null,
-    Math.floor(coordinates.y * sliderIncrement).Clamp(0, this.objectInventory.length - 21)
+    Math.floor(coordinates.y * sliderIncrement).Clamp(0, (this.objectInventory.length  / 10) - 21)
   );
 
   // Render the inventory
@@ -558,49 +577,22 @@ Game.prototype.ClickEvent = function(event) {
   var index = this.activePosition.GetIndex();
 
   // Delete objects
-  if(this.deleting) {
-
-    if(this.worldMapTiles[index] !== undefined) {
-
-      var id = this.worldMapTiles[index].objects.pop() || null;
-	  
-      if(id !== null) {
-
-        this.undoCommandMemoryBuffer.push({
-          "type": "delete",
-          "id": id,
-          "index": index
-        });
-
-      }
-	  
-    }
-	
-  } else if(this.moving) {
-
-    if(this.worldMapTiles[index] !== undefined) {
-      this.activeGameObject = this.worldMapTiles[index].objects.pop().id;
-      this.moving = !this.moving;
-    }
-
-  } else {
-	
-    if(this.worldMapTiles[index] === undefined) {
-      this.worldMapTiles[index] = new WorldTile(this.activePosition);
-    }
-
-    this.AddTileObject(index, this.activeGameObject);
-
-    // Push to the command buffer
-    this.undoCommandMemoryBuffer.push(
-      new Command(
-        this.activeGameObject,
-        index,
-        "place"
-      )
-    );
-	
+  if(this.worldMapTiles[index] === undefined) {
+    this.worldMapTiles[index] = new WorldTile(this.activePosition);
   }
+
+  this.AddTileObject(index, this.activeGameObject);
+
+  // Push to the command buffer
+  this.undoCommandMemoryBuffer.push(
+    new Command(
+      this.activeGameObject,
+      index,
+      "place"
+    )
+  );
+      
+  
   
   this.Render();
 
@@ -619,9 +611,17 @@ var Command = function(id, tile, type) {
  */
 Game.prototype.AddTileObject = function(index, gameObject) {
 
+  if(gameObject === null) return;
   var worldMapTile = this.worldMapTiles[index];
 
-  worldMapTile.Add(gameObject);
+  var groundTile = worldMapTile.HasGroundObject();
+
+  // If the tile has a ground object replace it
+  if(gameObject.ground && groundTile !== null) {
+    worldMapTile.Replace(gameObject, groundTile); 
+  } else {
+    worldMapTile.Add(gameObject);
+  }
 
   // Sort by the stack position
   // Ground tiles always go below objects
@@ -673,7 +673,7 @@ Game.prototype.MoveEvent = function(event) {
   var activePositionBuffer = this.GetTile(event);
 
   if(this.MovementDeferred(activePositionBuffer)) {
-	  
+  
     if(this.mouseDown) {
       this.ClickEvent(event);
     }
@@ -696,7 +696,8 @@ Game.prototype.GetTile = function(event) {
 
   return new Position(
     coordinates.i,
-    coordinates.j
+    coordinates.j,
+    coordinates.k
   );
 
 }
@@ -714,7 +715,8 @@ Game.prototype.GetGameCoordinates = function(event) {
   // correcting for the zoomLevel, viewport and sprite width
   return {
     "i": Math.floor((canvasCoordinates.x) / (32 * this.zoomLevel)) + this.viewport.i,
-    "j": Math.floor((canvasCoordinates.y) / (32 * this.zoomLevel)) + this.viewport.j
+    "j": Math.floor((canvasCoordinates.y) / (32 * this.zoomLevel)) + this.viewport.j,
+    "k": this.activeLayer
   }
 
 }
@@ -816,18 +818,18 @@ Game.prototype.RenderInventoryInterface = function() {
 
   // Use half pixels to prevent aliasing effects
   this.inventoryContext.rect(
-    42 - 0.5,
+    320 - 0.5,
     0 - 0.5,
-    42,
+    320,
     this.inventoryCanvas.height + 1
   );
 
   this.inventoryContext.stroke();
 
-  var sliderIncrement = (this.inventoryCanvas.height - SLIDER_WIDTH) / (this.objectInventory.length - 21);
+  var sliderIncrement = (this.inventoryCanvas.height - SLIDER_WIDTH) / ((this.objectInventory.length / 10) - 21);
 
   this.inventoryContext.DrawHandle(
-    44,
+    322,
     this.inventoryViewport.j * sliderIncrement,
     16,
     SLIDER_WIDTH
@@ -922,38 +924,39 @@ Game.prototype.RenderInterface = function() {
 Game.prototype.LoadResources = function() {
   
   this.resources = new Object();
-  this.nResourcesLoaded = 0;
+  nResourcesLoaded = 1;
 
   // Determine the resource load chain
-
-  this.resourceLoadChain = new Array();
-  
   this.resourceLoadChain = CATALOG_CONTENT;
   
   var self = this;
+  var fn;
 
   // Asynchronous but concurrent loading of resources
-  for(var i = 1; i < this.resourceLoadChain.length; i++) {
+  (fn = function() {
 
-    (function(resource) {
+    self.SetInfo("Loading sprite resources ... " + (100 * nResourcesLoaded / (self.resourceLoadChain.length - 1)).toFixed(0) + "%");
 
-      var src = "./sprites/" + resource.file + ".lzma.png";
+    var resource = self.resourceLoadChain[nResourcesLoaded];
 
-      var image = new Image();
-      image.src = src;
-      image.onload = function() {
+    // Create a new image
+    var image = new Image();
+    image.src = "./sprites/" + resource.file + ".lzma.png";
 
-        self.resources[resource.file] = image;
+    // Image load callback
+    image.onload = function() {
 
-        if(++self.nResourcesLoaded >= self.resourceLoadChain.length - 1) {
-          self.LoadResourcesCallback();
-        }
+      self.resources[resource.file] = image;
+
+      if(++nResourcesLoaded >= self.resourceLoadChain.length - 1) {
+        self.LoadResourcesCallback();
+      } else {
+        fn();
       }
 
-    })(this.resourceLoadChain[i]);
+    }
 
-  }
-  
+  })();
 
 }
 
@@ -972,51 +975,92 @@ Game.prototype.ClearGameScreen = function() {
 
 }
 
-/* Function Game.PartialRender
- * Renders a part of the viewport
- */
-Game.prototype.PartialRender = function() {
-
-  const RENDER_WIDTH = 3;
-
-  var position = this.GetPixelPosition(this.activePosition);
-  var index = this.activePosition.GetIndex();
-
-  this.context.clearRect(
-    position.x - (32 * RENDER_WIDTH),
-    position.y - (32 * RENDER_WIDTH),
-    32 * (2 * RENDER_WIDTH),
-    32 * (2 * RENDER_WIDTH)
-  );
-
-  var position;
-
-  for(var i = -RENDER_WIDTH; i < (RENDER_WIDTH + 1); i++) {
-    for(var j = -RENDER_WIDTH; j < (RENDER_WIDTH + 1); j++) {
-
-      var k = index + i + (j * this.WORLD_MAP_WIDTH);
-
-      worldTile = this.worldMapTiles[k];
-
-      // If the worldTile is defined
-      if(worldTile !== undefined) {
-        this.DrawWorldTile(worldTile);
-      }
-
-    }
-  }
-
-  this.DrawHoverObject(this.activePosition);
-
-}
-
 /* Function Game.GetWorldIndex
  * Returns the world index as a 1D
  * representation of a 2D world (i, j)
  */
-Game.prototype.GetWorldIndex = function(i, j) {
+Game.prototype.GetWorldIndex = function(i, j, k) {
 
-  return i + (j * this.WORLD_MAP_WIDTH);
+  return i + (j * this.WORLD_MAP_WIDTH) + (k * this.WORLD_MAP_WIDTH * this.WORLD_MAP_HEIGHT);
+
+}
+
+/* Game.RenderLayer
+ * Renders a layer of the world
+ */
+Game.prototype.RenderLayer = function(layer) {
+
+  // Get the zoom level correction
+  var zoomLevelCorrection = this.GetZoomLevelCorrection();
+
+  // Go over each tile in the layer
+  for(var i = this.viewport.i; i < this.viewport.i + zoomLevelCorrection; i++) {
+
+    for(var j = this.viewport.j; j < this.viewport.j + zoomLevelCorrection; j++) {
+
+      // Get the world index for the layer and tile
+      index = this.GetWorldIndex(i, j, layer);
+
+      worldTile = this.worldMapTiles[index] || null;
+
+      this.DrawWorldTile(worldTile);
+
+    }
+
+  }
+
+}
+
+/* Game.SetLayerTransparency
+ * Sets the transparency of all lower layers
+ */
+Game.prototype.SetLayerTransparency = function() {
+
+  // Transparency of lower layers
+  const LAYER_TRANSPARENCY = 128;
+
+  // Get the canvas bitmap
+  var canvasBitmap = this.context.getImageData(
+    0,
+    0,
+    this.canvas.width - this.PADDING,
+    this.canvas.height - this.PADDING
+  );
+  
+  // Modify transparency of bitmap
+  // hit each fourth element (RGBA)
+  for(var i = 0; i < canvasBitmap.data.length; i += 4) {
+    canvasBitmap.data[i + 3] = LAYER_TRANSPARENCY;
+  }
+
+  // Write back to canvas
+  this.context.putImageData(
+    canvasBitmap,
+    0,
+    0
+  );
+
+}
+
+/* Game.RenderWindowBackground
+ * Renders black background
+ */
+Game.prototype.RenderWindowBackground = function() {
+
+  // Set the composite operation to destination over
+  this.context.globalCompositeOperation = "destination-over";
+
+  this.context.fillStyle = "black";
+
+  this.context.fillRect(
+    0,
+    0,
+    this.canvas.width - this.PADDING,
+    this.canvas.height - this.PADDING
+  );
+
+  // Set the composite operation to source over
+  this.context.globalCompositeOperation = "source-over";
 
 }
 
@@ -1025,33 +1069,26 @@ Game.prototype.GetWorldIndex = function(i, j) {
  */
 Game.prototype.Render = function() {
 
-  var index,
-      worldTile;
-
   // Clear all the sprites from the game screen 
   this.ClearGameScreen();
 
+  // Call render for the GUI
   this.RenderInterface();
 
-  var zoomLevelCorrection = this.GetZoomLevelCorrection();
-  
-  // Render the visible part of the world map
-  // In the 20x20 tiles visible screen area
-  // and correct for the zoom level
-  for(var i = this.viewport.i; i < this.viewport.i + zoomLevelCorrection; i++) {
-    for(var j = this.viewport.j; j < this.viewport.j + zoomLevelCorrection; j++) {
-		
-      // Get the world index
-      index = this.GetWorldIndex(i, j);
-		
-      worldTile = this.worldMapTiles[index] || null;
-
-      this.DrawWorldTile(worldTile);
-
-    }
+  // Render all layers below the active layer
+  for(var layer = 0; layer < this.activeLayer; layer++) {
+    this.RenderLayer(layer);
   }
 
-  // Draw the mouse object
+  // Set transparency of lower layers and render black background 
+  this.SetLayerTransparency();
+
+  this.RenderWindowBackground();
+
+  // Render the active layer
+  this.RenderLayer(this.activeLayer);
+
+  // Finally draw the mouse object
   this.DrawHoverObject(this.activePosition);
 
 }
@@ -1067,15 +1104,31 @@ Game.prototype.LoadResourcesCallback = function() {
 
   // Add the mouse handlers
   window.addEventListener("mousemove", this.MoveEvent.bind(this));
-
   window.addEventListener("mousedown", this.MouseDownEvent.bind(this));
   window.addEventListener("mouseup", this.MouseUpEvent.bind(this));
-  
   window.addEventListener("wheel", this.ScrollEvent.bind(this));
+
+  window.addEventListener("dblclick", this.DoubleClickEvent.bind(this));
 
   // Add handler for the inventory canvas
   this.InitInventory();
+
+  this.SetInfo("Map editor initialized in " + (Date.now() - this.timeInitialized) + "ms.");
   
+}
+
+/* Game.DoubleClickEvent
+ * Handles double click events
+ */
+Game.prototype.DoubleClickEvent = function(event) {
+
+  // Get the active index
+  var index = this.activePosition.GetIndex();
+
+  if(this.worldMapTiles[index] !== undefined) {
+    var object = this.worldMapTiles[index].objects[0];
+  }
+
 }
 
 /* Game.ScrollEvent
@@ -1105,7 +1158,7 @@ Game.prototype.ScrollEvent = function(event) {
       // Update the inventory viewport
       this.inventoryViewport.SetPosition(
         null,
-        (this.inventoryViewport.j + (scrollUp ? -1 : 1)).Clamp(0, this.objectInventory.length - 21)
+        (this.inventoryViewport.j + (scrollUp ? -1 : 1)).Clamp(0, (this.objectInventory.length / 10) - 21)
       );
 
       this.RenderInventory();
@@ -1167,21 +1220,26 @@ Game.prototype.MouseUpEvent = function(event) {
 /* Function Game.Draw
  * Draws object to canvas
  */
-Game.prototype.Draw = function(object, position, elevation) {
+Game.prototype.Draw = function(object, position, elevation, count) {
 
   // Default elevation of 0
   elevation = elevation || 0;
+  count = count || 0;
   
   if(object === null) {
     return;
   }
+
 	
   var pixelPosition = this.GetPixelPosition(position);
   
   var spriteIndex = (position.i % object.pattern.width) + object.pattern.width * (position.j % object.pattern.height);
 
+  // Player the animation
   if(object.animated) {
-	spriteIndex = (spriteIndex + this.frameNumber) % (object.sprites.length - 1);  
+    spriteIndex = (spriteIndex + this.frameNumber) % (object.sprites.length - 1);  
+  } else if(object.cumulative) {
+    spriteIndex = count;
   }
   
   var sprite = object.sprites[spriteIndex];
@@ -1212,7 +1270,7 @@ Game.prototype.PositionInViewport = function(position) {
   // Apply correction for zoom level
   return (
     (position.i > -1) &&
-	(position.j > -1) &&
+    (position.j > -1) &&
     (position.i < (this.viewport.i + zoomLevelCorrection)) &&
     (position.j < (this.viewport.j + zoomLevelCorrection))
   );
@@ -1303,7 +1361,8 @@ Game.prototype.DrawWorldTile = function(worldTile) {
     this.Draw(
 	  tileObject.gameObjectPointer,
 	  worldTile.position,
-	  elevation
+	  elevation,
+          tileObject.count
 	);
 
 	// Keep track of the tile elevation

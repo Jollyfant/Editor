@@ -1,15 +1,8 @@
-.grabbable {
-    cursor: move; /* fallback if grab cursor is unsupported */
-    cursor: grab;
-    cursor: -moz-grab;
-    cursor: -webkit-grab;
-}
-
- /* (Optional) Apply a "closed-hand" cursor during drag operation. */
-.grabbable:active { 
-    cursor: grabbing;
-    cursor: -moz-grabbing;
-    cursor: -webkit-grabbing;
+#properties {
+  border: 1px solid black;
+  margin: 0px auto;
+  padding: 4px;
+  margin-bottom: 4px;
 }
 
 .footer {
@@ -25,6 +18,7 @@
 }
 
 .gameScreen {
+  width: 1004px;
   text-align: center;
   margin: 0px auto;
 }
@@ -36,7 +30,7 @@ canvas {
 }
 
 #gameInventoryCanvas {
-  width: 62px;
+  width: 340px;
   height: 640px;
   vertical-align: top;
 }
