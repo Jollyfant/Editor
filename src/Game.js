@@ -592,8 +592,6 @@ Game.prototype.ClickEvent = function(event) {
       "place"
     )
   );
-      
-  this.Render();
 
 }
 
@@ -692,24 +690,46 @@ Game.prototype.MoveEvent = function(event) {
   if(this.clickedComponent.id === "viewportHandleH" || this.clickedComponent.id === "viewportHandleV") {
     return this.MoveViewport(event);
   }
-
+ 
   // Movement inside the game world window
   var activePositionBuffer = this.GetTile(event);
-  
+ 
   if(this.MovementDeferred(activePositionBuffer)) {
+
+
   
+    var pixels = this.GetPixelPosition(this.activePosition);
+
+	if(pixels && this.bufferedImageData) {
+  	  this.context.putImageData(
+        this.bufferedImageData,
+        pixels.x,
+        pixels.y
+      );
+	}
+	
+    var pixels = this.GetPixelPosition(activePositionBuffer);
+
+    this.bufferedImageData = this.context.getImageData(
+      pixels.x,
+	  pixels.y,
+	  32,
+	  32
+    )
+	
+    // Draw hover object on the new buffered position
+    this.DrawHoverObject(activePositionBuffer);
+	
+	this.activePosition = activePositionBuffer;	
+	
     if(this.mouseDown) {
       this.ClickEvent(event);
-    }
-
-    this.PartialRender(activePositionBuffer);
-	  
-    // Set the active position to the buffer
-    // and render the screen
-    this.activePosition = activePositionBuffer;
+      this.Render();
+	}
 	
   }
-
+ 
+	
 }
 
 Game.prototype.GetTile = function(event) {
@@ -1031,7 +1051,6 @@ Game.prototype.RenderLayer = function(layer) {
     }
 
   }
-  }
 
 }
 
@@ -1188,33 +1207,6 @@ Game.prototype.Render = function() {
   // Finally draw the mouse object
   this.DrawHoverObject(this.activePosition);
 
-}
-
-Game.prototype.PartialRender = function(newPosition) {
-
-  var position = this.activePosition;
-  
-  var pixels = this.GetPixelPosition(position);
-  
-  if(pixels === null) return;
-  
-  // Clean up the old movement position
-  this.context.clearRect(
-    pixels.x,
-    pixels.y,
-    32 * this.zoomLevel,
-    32 * this.zoomLevel
-  ); 
-
-  
-  this.SetLayerTransparencyPartial();
-  this.RenderWindowBackgroundPartial();
-  
-  this.RenderPartialLayer(this.activeLayer);
-  
-  // Draw hover object on the new buffered position
-  this.DrawHoverObject(newPosition);	
-  
 }
 
 /* Game.LoadResourcesCallback
