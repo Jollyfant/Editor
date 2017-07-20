@@ -37,6 +37,7 @@ var Game = function() {
   
   this.activeLayer = 0;
   this.activeGameObject = null;
+  this.rectangleSelectStart = null;
 
   this.bounds = this.canvas.getBoundingClientRect();
   this.inventoryBounds = this.inventoryCanvas.getBoundingClientRect();
@@ -89,7 +90,7 @@ Game.prototype.IncrementAnimationFrame = function(x) {
   // Increment the current frame number
   this.frameNumber = (this.frameNumber + 1) % 100;
 
-  this.Render();
+  //this.Render();
 
 }
 
@@ -592,8 +593,6 @@ Game.prototype.ClickEvent = function(event) {
     )
   );
       
-  
-  
   this.Render();
 
 }
@@ -651,11 +650,36 @@ Game.prototype.SetMousePointerStyle = function(componentType) {
 
 }
 
+/* Game.DrawSelectionRectangle
+ * Draws a rectangle for selection
+ */
+Game.prototype.DrawSelectionRectangle = function() {
+
+  var iMinimum = Math.min(this.rectangleSelectStart.i, this.activePosition.i);
+  var jMinimum = Math.min(this.rectangleSelectStart.j, this.activePosition.j);
+  
+  var iMaximum = 1 + Math.max(this.rectangleSelectStart.i, this.activePosition.i);
+  var jMaximum = 1 + Math.max(this.rectangleSelectStart.j, this.activePosition.j);
+  
+  var pixelPositionMin = this.GetPixelPosition(new Position(iMinimum, jMinimum, 0));
+  var pixelPositionMax = this.GetPixelPosition(new Position(iMaximum, jMaximum, 0));
+  
+  this.context.fillStyle = "green";
+  
+  this.context.fillRect(
+    pixelPositionMin.x,
+    pixelPositionMin.y,
+    pixelPositionMax.x - pixelPositionMin.x,
+    pixelPositionMax.y - pixelPositionMin.y
+  );
+
+}
+
 /* Function Game.MoveEvent
  * handles the mouse move event
  */
 Game.prototype.MoveEvent = function(event) {
-
+  
   // Update the mouse pointer style
   this.SetMousePointerStyle(this.GetComponent(event).type);
 
@@ -671,23 +695,22 @@ Game.prototype.MoveEvent = function(event) {
 
   // Movement inside the game world window
   var activePositionBuffer = this.GetTile(event);
-
+  
   if(this.MovementDeferred(activePositionBuffer)) {
   
     if(this.mouseDown) {
       this.ClickEvent(event);
     }
 
+    this.PartialRender(activePositionBuffer);
+	  
     // Set the active position to the buffer
     // and render the screen
     this.activePosition = activePositionBuffer;
 	
   }
 
-  this.Render();
-
 }
-
 
 Game.prototype.GetTile = function(event) {
 
@@ -1008,6 +1031,22 @@ Game.prototype.RenderLayer = function(layer) {
     }
 
   }
+  }
+
+}
+
+Game.prototype.RenderPartialLayer = function(layer) {
+
+  // Get the world index for the layer and tile
+  index = this.GetWorldIndex(
+    this.activePosition.i,
+ 	this.activePosition.j,
+ 	layer
+  );
+ 
+  worldTile = this.worldMapTiles[index] || null;
+ 
+  this.DrawWorldTile(worldTile);
 
 }
 
@@ -1042,6 +1081,60 @@ Game.prototype.SetLayerTransparency = function() {
 
 }
 
+Game.prototype.SetLayerTransparencyPartial = function() {
+
+  var zoomLevelCorrection = this.GetZoomLevelCorrection();
+  
+  // Transparency of lower layers
+  const LAYER_TRANSPARENCY = 128;
+
+  var position = this.GetPixelPosition(this.activePosition);
+  
+  // Get the canvas bitmap
+  var canvasBitmap = this.context.getImageData(
+    position.x,
+    position.y,
+    32 * this.zoomLevel,
+    32 * this.zoomLevel
+  );
+  
+  // Modify transparency of bitmap
+  // hit each fourth element (RGBA)
+  for(var i = 0; i < canvasBitmap.data.length; i += 4) {
+    canvasBitmap.data[i + 3] = LAYER_TRANSPARENCY;
+  }
+
+  // Write back to canvas
+  this.context.putImageData(
+    canvasBitmap,
+    0,
+    0
+  );
+
+}
+
+Game.prototype.RenderWindowBackgroundPartial = function() {
+
+  var zoomLevelCorrection = this.GetZoomLevelCorrection();
+  
+  // Set the composite operation to destination over
+  this.context.globalCompositeOperation = "destination-over";
+
+  this.context.fillStyle = "black";
+  var position = this.GetPixelPosition(this.activePosition);
+  
+  this.context.fillRect(
+    position.x,
+    position.y,
+    32 * this.zoomLevel,
+    32 * this.zoomLevel
+  );
+
+  // Set the composite operation to source over
+  this.context.globalCompositeOperation = "source-over";
+
+}
+
 /* Game.RenderWindowBackground
  * Renders black background
  */
@@ -1068,7 +1161,7 @@ Game.prototype.RenderWindowBackground = function() {
  * Renders all objects in the viewport to screen
  */
 Game.prototype.Render = function() {
-
+  
   // Clear all the sprites from the game screen 
   this.ClearGameScreen();
 
@@ -1088,11 +1181,41 @@ Game.prototype.Render = function() {
   // Render the active layer
   this.RenderLayer(this.activeLayer);
 
+  if(this.rectangleSelectStart !== null) {
+	return this.DrawSelectionRectangle();
+  }
+  
   // Finally draw the mouse object
   this.DrawHoverObject(this.activePosition);
 
 }
 
+Game.prototype.PartialRender = function(newPosition) {
+
+  var position = this.activePosition;
+  
+  var pixels = this.GetPixelPosition(position);
+  
+  if(pixels === null) return;
+  
+  // Clean up the old movement position
+  this.context.clearRect(
+    pixels.x,
+    pixels.y,
+    32 * this.zoomLevel,
+    32 * this.zoomLevel
+  ); 
+
+  
+  this.SetLayerTransparencyPartial();
+  this.RenderWindowBackgroundPartial();
+  
+  this.RenderPartialLayer(this.activeLayer);
+  
+  // Draw hover object on the new buffered position
+  this.DrawHoverObject(newPosition);	
+  
+}
 
 /* Game.LoadResourcesCallback
  * Fires when all resources are loaded
@@ -1168,10 +1291,71 @@ Game.prototype.ScrollEvent = function(event) {
   
 }
 
+Game.prototype.DrawTileRectangle = function() {
+	
+  var iMinimum = Math.min(this.rectangleSelectStart.i, this.activePosition.i);
+  var jMinimum = Math.min(this.rectangleSelectStart.j, this.activePosition.j);
+  
+  var iMaximum = Math.max(this.rectangleSelectStart.i, this.activePosition.i);
+  var jMaximum = Math.max(this.rectangleSelectStart.j, this.activePosition.j);
+  
+  for(var i = iMinimum; i <= iMaximum; i++) {
+    for(var j = jMinimum; j <= jMaximum; j++) {
+  	  
+      // Get the active index
+  	  var position = new Position(i, j, this.activeLayer);
+  	
+      var index = position.GetIndex();
+      
+      // Delete objects
+      if(this.worldMapTiles[index] === undefined) {
+        this.worldMapTiles[index] = new WorldTile(position);
+      }
+      
+      this.AddTileObject(index, this.activeGameObject);
+  	
+    }
+  }
+  
+  this.rectangleSelectStart = null;
+	
+}
+
+/* Game.MouseUpEvent
+ * Handles mouse up state
+ */
+Game.prototype.MouseUpEvent = function(event) {
+
+  // Update the mouse state
+  this.mouseDown = false;
+  
+  if(this.rectangleSelectStart !== null) {
+	return this.DrawTileRectangle();
+  }
+  
+  this.undoCommandMemory.push(this.undoCommandMemoryBuffer);
+
+  // Set mouse up state
+  this.clickedComponent = new Component();
+
+}
+
 /* Game.MouseDownEvent
  * Handles mouse down state
  */
 Game.prototype.MouseDownEvent = function(event) {
+
+  if(event.shiftKey) {
+	  
+    this.rectangleSelectStart = new Position(
+	  this.activePosition.i,
+	  this.activePosition.j,
+	  this.activePosition.k
+	);
+	
+	return;
+	
+  }
 
   // Push and reset the command memory buffer
   this.undoCommandMemoryBuffer = new Array();
@@ -1204,18 +1388,7 @@ Game.prototype.GetComponent = function(event) {
 
 }
 
-/* Game.MouseDownEvent
- * Handles mouse up state
- */
-Game.prototype.MouseUpEvent = function(event) {
 
-  this.undoCommandMemory.push(this.undoCommandMemoryBuffer);
-
-  // Set mouse up state
-  this.mouseDown = false;
-  this.clickedComponent = new Component();
-
-}
 
 /* Function Game.Draw
  * Draws object to canvas
@@ -1229,7 +1402,6 @@ Game.prototype.Draw = function(object, position, elevation, count) {
   if(object === null) {
     return;
   }
-
 	
   var pixelPosition = this.GetPixelPosition(position);
   
@@ -1282,7 +1454,7 @@ Game.prototype.PositionInViewport = function(position) {
  */
 Game.prototype.DrawHoverObject = function(position) {
 
-  this.DrawSelectionRectangle(position);
+  this.DrawSelectionTile(position);
 
 }
 
@@ -1306,10 +1478,10 @@ Game.prototype.GetPixelPosition = function(position) {
 
 }
 
-/* Function Game.DrawSelectionRectangle
+/* Function Game.DrawSelectionTile
  * Draws the selection rectangle around the active tile
  */
-Game.prototype.DrawSelectionRectangle = function(position) {
+Game.prototype.DrawSelectionTile = function(position) {
 
   // Transparency value for hover
   const HOVER_ALPHA_VALUE = 0.5;
@@ -1333,8 +1505,8 @@ Game.prototype.DrawSelectionRectangle = function(position) {
   this.context.rect(
     0.5 + pixelPosition.x,
     0.5 + pixelPosition.y,
-    32 * this.zoomLevel,
-    32 * this.zoomLevel
+    Math.floor(31 * this.zoomLevel),
+    Math.floor(31 * this.zoomLevel)
   );
 
   this.context.stroke();
