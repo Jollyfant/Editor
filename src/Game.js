@@ -90,7 +90,10 @@ Game.prototype.IncrementAnimationFrame = function(x) {
   // Increment the current frame number
   this.frameNumber = (this.frameNumber + 1) % 100;
 
-  //this.Render();
+  // Only render at normal zoom level
+  if(this.zoomLevel === 1 && this.rectangleSelectStart === null) {
+    this.Render();
+  }
 
 }
 
@@ -598,6 +601,8 @@ Game.prototype.ClickEvent = function(event) {
     )
   );
 
+  this.Render();
+
 }
 
 var Command = function(id, tile, type) {
@@ -672,7 +677,7 @@ Game.prototype.DrawSelectionRectangle = function() {
   
   var pixelPositionMin = this.GetPixelPosition(new Position(iMinimum, jMinimum, 0));
   var pixelPositionMax = this.GetPixelPosition(new Position(iMaximum, jMaximum, 0));
-  
+
   this.context.fillStyle = "green";
   
   this.context.fillRect(
@@ -710,7 +715,9 @@ Game.prototype.MoveEvent = function(event) {
   if(this.MovementDeferred(activePositionBuffer)) {
 
     // Put the old data
-    if(this.bufferedImageData) {
+    if(this.rectangleSelectStart === null) {
+
+      if(this.bufferedImageData) {
 
       var pixels = this.GetPixelPosition(this.activePosition);
 
@@ -735,13 +742,26 @@ Game.prototype.MoveEvent = function(event) {
     // Draw hover object on the new buffered position
     this.DrawHoverObject(activePositionBuffer);
 
+    }
+
     // Set the active position to the buffer
     this.activePosition = activePositionBuffer;	
 
+    // Draw the selection rectangle
+    if(this.rectangleSelectStart !== null) {
+
+      this.context.putImageData(
+        this.bufferedImageData,
+        0,
+        0
+      );
+
+      return this.DrawSelectionRectangle();
+
+    }
+ 
     if(this.mouseDown) {
       this.ClickEvent(event);
-      this.Render();
-      this.bufferedImageData = null;
     }
 
   }
@@ -1163,12 +1183,10 @@ Game.prototype.Render = function() {
   // Render the active layer
   this.RenderLayer(this.activeLayer);
 
-  if(this.rectangleSelectStart !== null) {
-    return this.DrawSelectionRectangle();
-  }
-  
   // Finally draw the mouse object
-  //this.DrawHoverObject(this.activePosition);
+  this.DrawHoverObject(this.activePosition);
+
+  this.bufferedImageData = null;
 
 }
 
@@ -1284,13 +1302,23 @@ Game.prototype.MouseUpEvent = function(event) {
   // Update the mouse state
   this.mouseDown = false;
   
+  // If a rectangle has been selected
   if(this.rectangleSelectStart !== null) {
-	return this.DrawTileRectangle();
+
+    // Empty the image buffer
+    this.bufferedImageData = null;
+
+    // Draw all objects in selection
+    // and fully render the scene
+    this.DrawTileRectangle();
+    this.Render();
+
+    return;
+
   }
   
   this.undoCommandMemory.push(this.undoCommandMemoryBuffer);
 
-  // Set mouse up state
   this.clickedComponent = new Component();
 
 }
@@ -1300,15 +1328,25 @@ Game.prototype.MouseUpEvent = function(event) {
  */
 Game.prototype.MouseDownEvent = function(event) {
 
+  // Shift key is pressed during mouse down
   if(event.shiftKey) {
-	  
+
+    // Create a position for the selection start
     this.rectangleSelectStart = new Position(
-	  this.activePosition.i,
-	  this.activePosition.j,
-	  this.activePosition.k
-	);
-	
-	return;
+      this.activePosition.i,
+      this.activePosition.j,
+      this.activePosition.k
+    );
+
+    // Freeze and capture the full current scene
+    this.bufferedImageData = this.context.getImageData(
+      0,
+      0,
+      this.canvas.width - this.PADDING,
+      this.canvas.height - this.PADDING
+    );
+
+    return;
 	
   }
 
