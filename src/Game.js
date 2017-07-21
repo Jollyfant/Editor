@@ -202,6 +202,9 @@ Game.prototype.Init = function() {
   // Initialize sprite animations
   this.InitAnimation(); 
 
+  // Render the scene
+  this.Render();
+
 }
 
 Game.prototype.SetInfo = function(str) {
@@ -434,6 +437,8 @@ Game.prototype.ZoomByFactor = function(factor) {
 
   // Calculate the new zoom level Clamped between 0.125 and 1.
   this.zoomLevel = (this.zoomLevel * factor).Clamp(0.125, 1);
+
+  this.bufferedImageData = null;
 
   this.CenterViewport();
 
@@ -698,6 +703,8 @@ Game.prototype.MoveEvent = function(event) {
   }
  
   // Movement inside the game world window
+  // Check if we are moving on a new tile
+  // First get the buffered new position
   var activePositionBuffer = this.GetTile(event);
  
   if(this.MovementDeferred(activePositionBuffer)) {
@@ -709,20 +716,20 @@ Game.prototype.MoveEvent = function(event) {
 
       this.context.putImageData(
         this.bufferedImageData,
-        pixels.x - 32,
-        pixels.y - 32
+        pixels.x - (32 * this.zoomLevel),
+        pixels.y - (32 * this.zoomLevel)
       );
 
     }
 
-    // Get the new data
+    // Get the new data from the active position buffer
     var pixels = this.GetPixelPosition(activePositionBuffer);
 
     this.bufferedImageData = this.context.getImageData(
-      pixels.x - 32,
-      pixels.y - 32,
-      64,
-      64
+      pixels.x - (32 * this.zoomLevel),
+      pixels.y - (32 * this.zoomLevel),
+      (64 * this.zoomLevel),
+      (64 * this.zoomLevel)
     );
 	
     // Draw hover object on the new buffered position
@@ -730,7 +737,13 @@ Game.prototype.MoveEvent = function(event) {
 
     // Set the active position to the buffer
     this.activePosition = activePositionBuffer;	
-	
+
+    if(this.mouseDown) {
+      this.ClickEvent(event);
+      this.Render();
+      this.bufferedImageData = null;
+    }
+
   }
  
 	
@@ -1104,60 +1117,6 @@ Game.prototype.SetLayerTransparency = function() {
 
 }
 
-Game.prototype.SetLayerTransparencyPartial = function() {
-
-  var zoomLevelCorrection = this.GetZoomLevelCorrection();
-  
-  // Transparency of lower layers
-  const LAYER_TRANSPARENCY = 128;
-
-  var position = this.GetPixelPosition(this.activePosition);
-  
-  // Get the canvas bitmap
-  var canvasBitmap = this.context.getImageData(
-    position.x,
-    position.y,
-    32 * this.zoomLevel,
-    32 * this.zoomLevel
-  );
-  
-  // Modify transparency of bitmap
-  // hit each fourth element (RGBA)
-  for(var i = 0; i < canvasBitmap.data.length; i += 4) {
-    canvasBitmap.data[i + 3] = LAYER_TRANSPARENCY;
-  }
-
-  // Write back to canvas
-  this.context.putImageData(
-    canvasBitmap,
-    0,
-    0
-  );
-
-}
-
-Game.prototype.RenderWindowBackgroundPartial = function() {
-
-  var zoomLevelCorrection = this.GetZoomLevelCorrection();
-  
-  // Set the composite operation to destination over
-  this.context.globalCompositeOperation = "destination-over";
-
-  this.context.fillStyle = "black";
-  var position = this.GetPixelPosition(this.activePosition);
-  
-  this.context.fillRect(
-    position.x,
-    position.y,
-    32 * this.zoomLevel,
-    32 * this.zoomLevel
-  );
-
-  // Set the composite operation to source over
-  this.context.globalCompositeOperation = "source-over";
-
-}
-
 /* Game.RenderWindowBackground
  * Renders black background
  */
@@ -1205,11 +1164,11 @@ Game.prototype.Render = function() {
   this.RenderLayer(this.activeLayer);
 
   if(this.rectangleSelectStart !== null) {
-	return this.DrawSelectionRectangle();
+    return this.DrawSelectionRectangle();
   }
   
   // Finally draw the mouse object
-  this.DrawHoverObject(this.activePosition);
+  //this.DrawHoverObject(this.activePosition);
 
 }
 
