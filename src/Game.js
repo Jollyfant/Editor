@@ -92,7 +92,7 @@ Game.prototype.IncrementAnimationFrame = function(x) {
 
   // Only render at normal zoom level
   if(this.zoomLevel === 1 && this.rectangleSelectStart === null) {
-    this.Render();
+    //this.Render();
   }
 
 }
@@ -273,10 +273,16 @@ Game.prototype.KeyEvent = function(event) {
   const LOWER_D_KEY = 68;
   const LOWER_Z_KEY = 90;
   const LOWER_R_KEY = 82;
+  
+  const SHIFT_KEY = 16;
 
   // Move the world map around the viewport
   switch(event.keyCode) {
 
+    // Automatically return when shift is fired
+    case SHIFT_KEY:
+	  return;
+	  
     // Move viewport left
     case ARROW_KEY_LEFT:
       this.IncrementViewport(-1, 0);
@@ -440,8 +446,6 @@ Game.prototype.ZoomByFactor = function(factor) {
 
   // Calculate the new zoom level Clamped between 0.125 and 1.
   this.zoomLevel = (this.zoomLevel * factor).Clamp(0.125, 1);
-
-  this.bufferedImageData = null;
 
   this.CenterViewport();
 
@@ -672,21 +676,26 @@ Game.prototype.DrawSelectionRectangle = function() {
   var iMinimum = Math.min(this.rectangleSelectStart.i, this.activePosition.i);
   var jMinimum = Math.min(this.rectangleSelectStart.j, this.activePosition.j);
   
-  var iMaximum = 1 + Math.max(this.rectangleSelectStart.i, this.activePosition.i);
-  var jMaximum = 1 + Math.max(this.rectangleSelectStart.j, this.activePosition.j);
+  var iMaximum = Math.max(this.rectangleSelectStart.i, this.activePosition.i);
+  var jMaximum = Math.max(this.rectangleSelectStart.j, this.activePosition.j);
   
   var pixelPositionMin = this.GetPixelPosition(new Position(iMinimum, jMinimum, 0));
   var pixelPositionMax = this.GetPixelPosition(new Position(iMaximum, jMaximum, 0));
 
+
   this.context.fillStyle = "green";
+  
+  this.context.globalAlpha = 0.5;
   
   this.context.fillRect(
     pixelPositionMin.x,
     pixelPositionMin.y,
-    pixelPositionMax.x - pixelPositionMin.x,
-    pixelPositionMax.y - pixelPositionMin.y
+    32 + pixelPositionMax.x - pixelPositionMin.x,
+    32 + pixelPositionMax.y - pixelPositionMin.y
   );
-
+  
+  this.context.globalAlpha = 1;
+  
 }
 
 /* Function Game.MoveEvent
@@ -711,62 +720,77 @@ Game.prototype.MoveEvent = function(event) {
   // Check if we are moving on a new tile
   // First get the buffered new position
   var activePositionBuffer = this.GetTile(event);
- 
+
+  // Position not in viewport
+  if(!this.PositionInViewport(activePositionBuffer)) {
+    return;
+  }
+  
   if(this.MovementDeferred(activePositionBuffer)) {
 
-    // Put the old data
-    if(this.rectangleSelectStart === null) {
+    // When selecting
+    if(this.rectangleSelectStart !== null) {
+		
+      this.activePosition = activePositionBuffer;
+	  this.DumpImageBuffer(0, 0);
+      this.DrawSelectionRectangle();
+	  
+	  return;
 
-      if(this.bufferedImageData) {
+    }
+	
+    if(this.bufferedImageData) {
 
       var pixels = this.GetPixelPosition(this.activePosition);
-
-      this.context.putImageData(
-        this.bufferedImageData,
-        pixels.x - (32 * this.zoomLevel),
-        pixels.y - (32 * this.zoomLevel)
-      );
-
-    }
-
-    // Get the new data from the active position buffer
-    var pixels = this.GetPixelPosition(activePositionBuffer);
-
-    this.bufferedImageData = this.context.getImageData(
-      pixels.x - (32 * this.zoomLevel),
-      pixels.y - (32 * this.zoomLevel),
-      (64 * this.zoomLevel),
-      (64 * this.zoomLevel)
-    );
 	
-    // Draw hover object on the new buffered position
-    this.DrawHoverObject(activePositionBuffer);
+      if(pixels !== null) {
 
-    }
+	    this.DumpImageBuffer(
+          pixels.x - (32 * this.zoomLevel),
+          pixels.y - (32 * this.zoomLevel)		
+		);
 
-    // Set the active position to the buffer
-    this.activePosition = activePositionBuffer;	
+      }
+	
+	}
+	
+     // Get the new data from the active position buffer
+     var pixels = this.GetPixelPosition(activePositionBuffer);
 
-    // Draw the selection rectangle
-    if(this.rectangleSelectStart !== null) {
+	 if(pixels !== null) {
 
-      this.context.putImageData(
-        this.bufferedImageData,
-        0,
-        0
-      );
+       this.bufferedImageData = this.context.getImageData(
+         pixels.x - (32 * this.zoomLevel),
+         pixels.y - (32 * this.zoomLevel),
+         (64 * this.zoomLevel),
+         (64 * this.zoomLevel)
+       );
 
-      return this.DrawSelectionRectangle();
+	 }
+	 
+     // Draw hover object on the new buffered position
+     this.DrawHoverObject(activePositionBuffer);
+	 
+	    // Set the active position to the buffer
+      this.activePosition = activePositionBuffer;	
+	
+      if(this.mouseDown) {
+        this.ClickEvent(event);
+      }
 
-    }
- 
-    if(this.mouseDown) {
-      this.ClickEvent(event);
-    }
 
   }
  
+}
+
+Game.prototype.DumpImageBuffer = function(x, y) {
 	
+  this.context.putImageData(
+    this.bufferedImageData,
+    x,
+    y
+  );
+  
 }
 
 Game.prototype.GetTile = function(event) {
@@ -1163,7 +1187,10 @@ Game.prototype.RenderWindowBackground = function() {
  * Renders all objects in the viewport to screen
  */
 Game.prototype.Render = function() {
-  
+
+  // Clear image buffer
+  this.bufferedImageData = null;
+ 
   // Clear all the sprites from the game screen 
   this.ClearGameScreen();
 
@@ -1182,12 +1209,7 @@ Game.prototype.Render = function() {
 
   // Render the active layer
   this.RenderLayer(this.activeLayer);
-
-  // Finally draw the mouse object
-  this.DrawHoverObject(this.activePosition);
-
-  this.bufferedImageData = null;
-
+  
 }
 
 /* Game.LoadResourcesCallback
@@ -1196,7 +1218,7 @@ Game.prototype.Render = function() {
 Game.prototype.LoadResourcesCallback = function() {
 
   // Add the keyboard handler
-  window.addEventListener("keydown", this.KeyEvent.bind(this));
+  window.addEventListener("keypress", this.KeyEvent.bind(this));
 
   // Add the mouse handlers
   window.addEventListener("mousemove", this.MoveEvent.bind(this));
@@ -1311,6 +1333,7 @@ Game.prototype.MouseUpEvent = function(event) {
     // Draw all objects in selection
     // and fully render the scene
     this.DrawTileRectangle();
+	
     this.Render();
 
     return;
