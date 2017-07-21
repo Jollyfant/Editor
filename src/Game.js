@@ -629,7 +629,13 @@ Game.prototype.AddTileObject = function(index, gameObject) {
 }
 
 Game.prototype.MovementDeferred = function(activePositionBuffer) {
+
+  if(this.activePosition === null) {
+    return true;
+  }
+
   return this.activePosition.GetIndex() !== activePositionBuffer.GetIndex();
+
 }
 
 /* Game.SetMousePointerStyle
@@ -696,36 +702,34 @@ Game.prototype.MoveEvent = function(event) {
  
   if(this.MovementDeferred(activePositionBuffer)) {
 
+    // Put the old data
+    if(this.bufferedImageData) {
 
-  
-    var pixels = this.GetPixelPosition(this.activePosition);
+      var pixels = this.GetPixelPosition(this.activePosition);
 
-	if(pixels && this.bufferedImageData) {
-  	  this.context.putImageData(
+      this.context.putImageData(
         this.bufferedImageData,
-        pixels.x,
-        pixels.y
+        pixels.x - 32,
+        pixels.y - 32
       );
-	}
-	
+
+    }
+
+    // Get the new data
     var pixels = this.GetPixelPosition(activePositionBuffer);
 
     this.bufferedImageData = this.context.getImageData(
-      pixels.x,
-	  pixels.y,
-	  32,
-	  32
-    )
+      pixels.x - 32,
+      pixels.y - 32,
+      64,
+      64
+    );
 	
     // Draw hover object on the new buffered position
     this.DrawHoverObject(activePositionBuffer);
-	
-	this.activePosition = activePositionBuffer;	
-	
-    if(this.mouseDown) {
-      this.ClickEvent(event);
-      this.Render();
-	}
+
+    // Set the active position to the buffer
+    this.activePosition = activePositionBuffer;	
 	
   }
  
