@@ -6,8 +6,9 @@ var Game = function() {
   this.APPLICATION_VERSION = "0.0.0";
 
   // World map settings
-  this.WORLD_MAP_WIDTH = 1000;
-  this.WORLD_MAP_HEIGHT = 1000;
+  this.WORLD_MAP_WIDTH = 32;
+  this.WORLD_MAP_HEIGHT = 32;
+  
   this.WORLD_MAP_DEPTH = 10;
 
   this.timeInitialized = new Date();
@@ -340,6 +341,80 @@ Game.prototype.KeyEvent = function(event) {
 
 }
 
+Game.prototype.RenderViewportIncrement = function(direction) {
+	
+	switch(direction) {
+		
+	  case "LEFT":
+
+	    var imageData = this.context.getImageData(
+	      0,
+	      0,
+	      this.canvas.width - (32 * this.zoomLevel) - this.PADDING,
+	      this.canvas.height - this.PADDING
+	    )
+		
+	    this.ClearGameScreen();
+		
+	    this.context.putImageData(
+	      imageData,
+	      (32 * this.zoomLevel),
+	      0
+	    );
+	    
+		for(var i = 0 ; i < 20; i++) {
+			
+			index = this.GetWorldIndex(
+				this.viewport.i - 1,
+				i,
+				0
+			);
+
+			worldTile = this.worldMapTiles[index] || null;
+
+			this.DrawWorldTile(worldTile);
+			
+		}
+		
+	    break;
+		
+	  case "RIGHT":
+	  
+	    var imageData = this.context.getImageData(
+	      32 * this.zoomLevel,
+	      0,
+	      this.canvas.width - this.PADDING - (32 * this.zoomLevel),
+	      this.canvas.height - this.PADDING
+	    )
+		
+		this.ClearGameScreen();    
+		
+	    this.context.putImageData(
+	      imageData,
+	      0,
+	      0
+	    );
+
+		for(var i = 0; i < 20; i++) {
+			
+			index = this.GetWorldIndex(
+				this.viewport.i + 20,
+				i,
+				0
+			);
+
+			worldTile = this.worldMapTiles[index] || null;
+
+			this.DrawWorldTile(worldTile);
+			
+		}
+	    
+	    break;
+		
+	}
+	
+}
+
 /* Game.IncrementViewport
  * Moves the viewport up, down, left or right
  */
@@ -444,6 +519,12 @@ Game.prototype.ZoomByFactor = function(factor) {
     throw("The passed zoom factor must be either 0.5 or 2.");
   }
 
+  var zoomLevelCorrection = this.GetZoomLevelCorrection() / factor;
+  
+  if(zoomLevelCorrection > this.WORLD_MAP_WIDTH || zoomLevelCorrection > this.WORLD_MAP_HEIGHT) {
+	return;  
+  }
+  
   // Calculate the new zoom level Clamped between 0.125 and 1.
   this.zoomLevel = (this.zoomLevel * factor).Clamp(0.125, 1);
 
@@ -521,10 +602,12 @@ Game.prototype.MoveInventory = function(event) {
 Game.prototype.MoveViewport = function(event) {
 
   const SLIDER_WIDTH = 64;
-
+  
+  var sliderIncrement;
+  
   // Correct for the zoom level
   var zoomLevelCorrection = this.GetZoomLevelCorrection();
-  var sliderIncrement = (1000 - zoomLevelCorrection) / (640 - SLIDER_WIDTH);
+  
 
   // Propogate the event to get the canvas coordinates
   var coordinates = this.GetRelativeCoordinates(event);
@@ -532,6 +615,8 @@ Game.prototype.MoveViewport = function(event) {
 
   if(this.clickedComponent.id === "viewportHandleV") {
 
+    sliderIncrement = (this.WORLD_MAP_HEIGHT - zoomLevelCorrection) / (640 - SLIDER_WIDTH);
+  
     // Grab in the middle of the slider
     coordinates.y -= 0.5 * SLIDER_WIDTH;
 
@@ -541,6 +626,8 @@ Game.prototype.MoveViewport = function(event) {
     );
 
   } else if(this.clickedComponent.id === "viewportHandleH") {
+	  
+    sliderIncrement = (this.WORLD_MAP_WIDTH - zoomLevelCorrection) / (640 - SLIDER_WIDTH);
 
     // Handle is in the middle of the slider
     coordinates.x -= 0.5 * SLIDER_WIDTH;
@@ -587,7 +674,7 @@ Game.prototype.ClickEvent = function(event) {
   }
 
   // Get the active index
-  var index = this.activePosition.GetIndex();
+  var index = this.GetPositionIndex(this.activePosition);
 
   // Delete objects
   if(this.worldMapTiles[index] === undefined) {
@@ -648,7 +735,7 @@ Game.prototype.MovementDeferred = function(activePositionBuffer) {
     return true;
   }
 
-  return this.activePosition.GetIndex() !== activePositionBuffer.GetIndex();
+  return this.GetPositionIndex(this.activePosition) !== this.GetPositionIndex(activePositionBuffer);
 
 }
 
@@ -863,7 +950,9 @@ Game.prototype.RenderSliderHandle = function() {
   var zoomLevelCorrection = this.GetZoomLevelCorrection();
 
   const SLIDER_WIDTH = 64;
-  const sliderIncrement = (640 - SLIDER_WIDTH) / (1000 - zoomLevelCorrection);
+  var sliderIncrement;
+  
+  sliderIncrement = (640 - SLIDER_WIDTH) / (this.WORLD_MAP_WIDTH - zoomLevelCorrection);
 
   this.context.fillStyle = "grey";
 
@@ -875,6 +964,8 @@ Game.prototype.RenderSliderHandle = function() {
     this.PADDING - 4
   );
 
+  sliderIncrement = (640 - SLIDER_WIDTH) / (this.WORLD_MAP_HEIGHT - zoomLevelCorrection);
+	
   // Render the vertical bar
   this.context.DrawHandle(
     642 + 0.5,
@@ -1083,9 +1174,15 @@ Game.prototype.ClearGameScreen = function() {
  * Returns the world index as a 1D
  * representation of a 2D world (i, j)
  */
-Game.prototype.GetWorldIndex = function(i, j, k) {
+Game.prototype.GetWorldIndex = function(i, j) {
 
-  return i + (j * this.WORLD_MAP_WIDTH) + (k * this.WORLD_MAP_WIDTH * this.WORLD_MAP_HEIGHT);
+  return i + (j * this.WORLD_MAP_WIDTH);
+
+}
+
+Game.prototype.GetPositionIndex = function(position) {
+
+  return position.i + (position.j * this.WORLD_MAP_WIDTH) + (position.k * this.WORLD_MAP_WIDTH * this.WORLD_MAP_HEIGHT);
 
 }
 
@@ -1112,21 +1209,6 @@ Game.prototype.RenderLayer = function(layer) {
     }
 
   }
-
-}
-
-Game.prototype.RenderPartialLayer = function(layer) {
-
-  // Get the world index for the layer and tile
-  index = this.GetWorldIndex(
-    this.activePosition.i,
- 	this.activePosition.j,
- 	layer
-  );
- 
-  worldTile = this.worldMapTiles[index] || null;
- 
-  this.DrawWorldTile(worldTile);
 
 }
 
@@ -1241,7 +1323,7 @@ Game.prototype.LoadResourcesCallback = function() {
 Game.prototype.DoubleClickEvent = function(event) {
 
   // Get the active index
-  var index = this.activePosition.GetIndex();
+  var index = this.GetPositionIndex(this.activePosition);
 
   if(this.worldMapTiles[index] !== undefined) {
     var object = this.worldMapTiles[index].objects[0];
@@ -1300,7 +1382,7 @@ Game.prototype.DrawTileRectangle = function() {
       // Get the active index
   	  var position = new Position(i, j, this.activeLayer);
   	
-      var index = position.GetIndex();
+      var index = this.GetPositionIndex(position);
       
       // Delete objects
       if(this.worldMapTiles[index] === undefined) {
@@ -1410,7 +1492,7 @@ Game.prototype.GetComponent = function(event) {
  * Draws object to canvas
  */
 Game.prototype.Draw = function(object, position, elevation, count) {
-
+	
   // Default elevation of 0
   elevation = elevation || 0;
   count = count || 0;
@@ -1445,7 +1527,7 @@ Game.prototype.Draw = function(object, position, elevation, count) {
     sprite.width * this.zoomLevel,
     sprite.height * this.zoomLevel
   );
-
+  
 }
 
 /* Function Game.PositionInViewport
@@ -1550,7 +1632,7 @@ Game.prototype.DrawWorldTile = function(worldTile) {
 	  tileObject.gameObjectPointer,
 	  worldTile.position,
 	  elevation,
-          tileObject.count
+      tileObject.count
 	);
 
 	// Keep track of the tile elevation
