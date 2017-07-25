@@ -10,7 +10,7 @@ var TileObject = function(gameObject) {
   this.gameObjectPointer = gameObject;
   
   if(gameObject.cumulative) {
-    this.count = Math.floor(Math.random() * 8);
+    this.count = 1;
   }
 
   // Set the stack position of the object

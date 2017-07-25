@@ -36,8 +36,8 @@ var Sprite = function(sprite, spriteId) {
     
     }
 
-	// Number of sprites in a row
-	var spritesInRow = (12 / xScale);
+    // Number of sprites in a row
+    var spritesInRow = (12 / xScale);
 
     // Set the x, y position on the sprite sheet
     // and record the sprite width & height	

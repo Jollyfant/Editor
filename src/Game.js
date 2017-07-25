@@ -8,7 +8,6 @@ var Game = function() {
   // World map settings
   this.WORLD_MAP_WIDTH = 32;
   this.WORLD_MAP_HEIGHT = 32;
-  
   this.WORLD_MAP_DEPTH = 10;
 
   this.timeInitialized = new Date();
@@ -276,13 +275,18 @@ Game.prototype.KeyEvent = function(event) {
   const LOWER_R_KEY = 82;
   
   const SHIFT_KEY = 16;
+  const ESCAPE_KEY = 27;
 
   // Move the world map around the viewport
   switch(event.keyCode) {
 
     // Automatically return when shift is fired
     case SHIFT_KEY:
-	  return;
+      return;
+
+    case ESCAPE_KEY:
+      this.activeGameObject = null;
+      break;
 	  
     // Move viewport left
     case ARROW_KEY_LEFT:
@@ -341,87 +345,13 @@ Game.prototype.KeyEvent = function(event) {
 
 }
 
-Game.prototype.RenderViewportIncrement = function(direction) {
-	
-	switch(direction) {
-		
-	  case "LEFT":
-
-	    var imageData = this.context.getImageData(
-	      0,
-	      0,
-	      this.canvas.width - (32 * this.zoomLevel) - this.PADDING,
-	      this.canvas.height - this.PADDING
-	    )
-		
-	    this.ClearGameScreen();
-		
-	    this.context.putImageData(
-	      imageData,
-	      (32 * this.zoomLevel),
-	      0
-	    );
-	    
-		for(var i = 0 ; i < 20; i++) {
-			
-			index = this.GetWorldIndex(
-				this.viewport.i - 1,
-				i,
-				0
-			);
-
-			worldTile = this.worldMapTiles[index] || null;
-
-			this.DrawWorldTile(worldTile);
-			
-		}
-		
-	    break;
-		
-	  case "RIGHT":
-	  
-	    var imageData = this.context.getImageData(
-	      32 * this.zoomLevel,
-	      0,
-	      this.canvas.width - this.PADDING - (32 * this.zoomLevel),
-	      this.canvas.height - this.PADDING
-	    )
-		
-		this.ClearGameScreen();    
-		
-	    this.context.putImageData(
-	      imageData,
-	      0,
-	      0
-	    );
-
-		for(var i = 0; i < 20; i++) {
-			
-			index = this.GetWorldIndex(
-				this.viewport.i + 20,
-				i,
-				0
-			);
-
-			worldTile = this.worldMapTiles[index] || null;
-
-			this.DrawWorldTile(worldTile);
-			
-		}
-	    
-	    break;
-		
-	}
-	
-}
-
 /* Game.IncrementViewport
  * Moves the viewport up, down, left or right
  */
 Game.prototype.IncrementViewport = function(i, j) {
 
   var maximumViewport = this.GetMaximumViewportIndex();
-  
+
   // Clamp the position and correct for the zoom level
   this.viewport.SetPosition(
     (this.viewport.i + i).Clamp(0, maximumViewport.i),
@@ -1170,16 +1100,6 @@ Game.prototype.ClearGameScreen = function() {
 
 }
 
-/* Function Game.GetWorldIndex
- * Returns the world index as a 1D
- * representation of a 2D world (i, j)
- */
-Game.prototype.GetWorldIndex = function(i, j) {
-
-  return i + (j * this.WORLD_MAP_WIDTH);
-
-}
-
 Game.prototype.GetPositionIndex = function(position) {
 
   return position.i + (position.j * this.WORLD_MAP_WIDTH) + (position.k * this.WORLD_MAP_WIDTH * this.WORLD_MAP_HEIGHT);
@@ -1200,7 +1120,7 @@ Game.prototype.RenderLayer = function(layer) {
     for(var j = this.viewport.j; j < this.viewport.j + zoomLevelCorrection; j++) {
 
       // Get the world index for the layer and tile
-      index = this.GetWorldIndex(i, j, layer);
+      index = this.GetPositionIndex(new Position(i, j, layer));
 
       worldTile = this.worldMapTiles[index] || null;
 
@@ -1300,7 +1220,7 @@ Game.prototype.Render = function() {
 Game.prototype.LoadResourcesCallback = function() {
 
   // Add the keyboard handler
-  window.addEventListener("keypress", this.KeyEvent.bind(this));
+  window.addEventListener("keydown", this.KeyEvent.bind(this));
 
   // Add the mouse handlers
   window.addEventListener("mousemove", this.MoveEvent.bind(this));
@@ -1322,12 +1242,24 @@ Game.prototype.LoadResourcesCallback = function() {
  */
 Game.prototype.DoubleClickEvent = function(event) {
 
+  // Return if an item is selected
+  if(this.activeGameObject !== null) {
+    return;
+  }
+
   // Get the active index
   var index = this.GetPositionIndex(this.activePosition);
 
   if(this.worldMapTiles[index] !== undefined) {
     var object = this.worldMapTiles[index].objects[0];
   }
+
+  // If cumulative prompt the item count
+  if(object.gameObjectPointer.cumulative) {
+    object.count = Number(prompt("Item count"));
+  }
+
+  this.Render();
 
 }
 
@@ -1509,9 +1441,9 @@ Game.prototype.Draw = function(object, position, elevation, count) {
   if(object.animated) {
     spriteIndex = (spriteIndex + this.frameNumber) % (object.sprites.length - 1);  
   } else if(object.cumulative) {
-    spriteIndex = count;
+    spriteIndex = object.GetCountIndex(count);
   }
-  
+
   var sprite = object.sprites[spriteIndex];
 
   // Draw the image and correct for the zoom level,

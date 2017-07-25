@@ -73,3 +73,20 @@ GameObject.prototype.GetCatalogueEntry = function(objectId) {
   return CATALOG_CONTENT[CATALOG_CONTENT.length - 1];
 	
 }
+
+
+GameObject.prototype.GetCountIndex = function(count) {
+
+  if(count === 1) {
+    return 0;
+  } else if(count === 2) {
+    return 1;
+  } else if(count === 3) {
+    return 2;
+  } else if(count === 4) {
+    return 3;
+  } else {
+    return 0;
+  }
+
+}
