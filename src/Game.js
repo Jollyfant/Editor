@@ -9,41 +9,29 @@ var Game = function() {
   this.WORLD_MAP_WIDTH = 32;
   this.WORLD_MAP_HEIGHT = 32;
   this.WORLD_MAP_DEPTH = 10;
-
-  this.timeInitialized = new Date();
-
-  this.information = document.getElementById("properties");
-
   this.PADDING = 20;
 
-  // Get the canvas and context
-  this.canvas = document.getElementById("gameScreenCanvas");
-  this.canvas.height = 640 + this.PADDING;
-  this.canvas.width = 640 + this.PADDING;
+  this.canvas = new Canvas(
+    "gameScreenCanvas",
+    640 + this.PADDING,
+    640 + this.PADDING
+  );
 
-  this.context = this.canvas.getContext("2d");
-
-  // Get the inventory context
-  this.inventoryCanvas = document.getElementById("gameInventoryCanvas");
-  this.inventoryCanvas.height = 640;
-  this.inventoryCanvas.width = 320 + this.PADDING;
-
-  this.inventoryContext = this.inventoryCanvas.getContext("2d");  
+  // Create a container for the inventory
+  this.inventory = new Inventory("gameInventoryCanvas");
   
+  this.information = document.getElementById("properties");
+
   // Create the viewport
   this.viewport = new Position(0, 0, 0);
-  this.inventoryViewport = new Position(0, 0, 0);
   this.activePosition = new Position(0, 0, 0);
   
   this.activeLayer = 0;
   this.activeGameObject = null;
   this.rectangleSelectStart = null;
 
-  this.bounds = this.canvas.getBoundingClientRect();
-  this.inventoryBounds = this.inventoryCanvas.getBoundingClientRect();
-
   // The world map array is one-dimensional of length
-  // width * height.
+  // width * height * depth.
   this.worldMapTiles = new Array(
     this.WORLD_MAP_WIDTH * this.WORLD_MAP_HEIGHT * this.WORLD_MAP_DEPTH
   );
@@ -59,6 +47,7 @@ var Game = function() {
   this.mouseDown = false;
   this.clickedComponent = new Component();
 
+  // Initialize the application
   this.Init();
 
 }
@@ -104,7 +93,7 @@ Game.prototype.GetClickedInventoryObject = function(event) {
 
   // Only depends on the y-coordinates of the canvas
   var canvasCoordinates = this.GetInventoryCoordinates(event);
-  var index = 10 * (Math.floor(canvasCoordinates.y / 32) + this.inventoryViewport.j) + Math.floor(canvasCoordinates.x / 32);
+  var index = 10 * (Math.floor(canvasCoordinates.y / 32) + this.inventory.viewport.j) + Math.floor(canvasCoordinates.x / 32);
 
   this.activeGameObject = this.objectInventory[index] || null;
 
@@ -168,13 +157,13 @@ Game.prototype.RenderInventoryContent = function() {
       // Get the object from the inventory
       // and correct for the inventory viewport
       object = this.GetInventoryObject(
-        j + (10 * i) + this.inventoryViewport.j * 10
+        j + (10 * i) + this.inventory.viewport.j * 10
       );
 
       sprite = object.sprites[0];
           
       // Draw the sprite to the inventory
-      this.inventoryContext.drawImage(
+      this.inventory.canvas.context.drawImage(
         this.resources[sprite.resource],
         sprite.x,
         sprite.y,
@@ -198,6 +187,7 @@ Game.prototype.RenderInventoryContent = function() {
 Game.prototype.Init = function() {
 
   this.SetInfo("Initializing application ...");
+  this.timeInitialized = new Date();
 
   // Load all resources to memory
   this.LoadResources();
@@ -509,14 +499,14 @@ Game.prototype.MoveInventory = function(event) {
   // Width of the slider
   const SLIDER_WIDTH = 64;
 
-  var sliderIncrement = ((this.objectInventory.length / 10) - 21) / (this.inventoryCanvas.height - SLIDER_WIDTH);
+  var sliderIncrement = ((this.objectInventory.length / 10) - 21) / (this.inventory.canvas.height - SLIDER_WIDTH);
   var coordinates = this.GetRelativeCoordinates(event);
 
   // Grab in middle of handle
   coordinates.y -= 0.5 * SLIDER_WIDTH;
 
   // Update the viewport
-  this.inventoryViewport.SetPosition(
+  this.inventory.viewport.SetPosition(
     null,
     Math.floor(coordinates.y * sliderIncrement).Clamp(0, (this.objectInventory.length  / 10) - 21)
   );
@@ -700,18 +690,18 @@ Game.prototype.DrawSelectionRectangle = function() {
   var pixelPositionMax = this.GetPixelPosition(new Position(iMaximum, jMaximum, 0));
 
 
-  this.context.fillStyle = "green";
+  this.canvas.context.fillStyle = "green";
   
-  this.context.globalAlpha = 0.5;
+  this.canvas.context.globalAlpha = 0.5;
   
-  this.context.fillRect(
+  this.canvas.context.fillRect(
     pixelPositionMin.x,
     pixelPositionMin.y,
     32 + pixelPositionMax.x - pixelPositionMin.x,
     32 + pixelPositionMax.y - pixelPositionMin.y
   );
   
-  this.context.globalAlpha = 1;
+  this.canvas.context.globalAlpha = 1;
   
 }
 
@@ -776,7 +766,7 @@ Game.prototype.MoveEvent = function(event) {
 
 	 if(pixels !== null) {
 
-       this.bufferedImageData = this.context.getImageData(
+       this.bufferedImageData = this.canvas.context.getImageData(
          pixels.x - (32 * this.zoomLevel),
          pixels.y - (32 * this.zoomLevel),
          (64 * this.zoomLevel),
@@ -802,7 +792,7 @@ Game.prototype.MoveEvent = function(event) {
 
 Game.prototype.DumpImageBuffer = function(x, y) {
 	
-  this.context.putImageData(
+  this.canvas.context.putImageData(
     this.bufferedImageData,
     x,
     y
@@ -850,8 +840,8 @@ Game.prototype.GetInventoryCoordinates = function(event) {
 
   // Correct for the canvas position
   return {
-    "x": event.pageX - this.inventoryBounds.left,
-    "y": event.pageY - this.inventoryBounds.top
+    "x": event.pageX - this.inventory.canvas.bounds.left,
+    "y": event.pageY - this.inventory.canvas.bounds.top
   }
 
 }
@@ -864,8 +854,8 @@ Game.prototype.GetRelativeCoordinates = function(event) {
 
   // Correct for the canvas position
   return {
-    "x": event.pageX - this.bounds.left,
-    "y": event.pageY - this.bounds.top
+    "x": event.pageX - this.canvas.bounds.left,
+    "y": event.pageY - this.canvas.bounds.top
   }
 
 }
@@ -884,10 +874,10 @@ Game.prototype.RenderSliderHandle = function() {
   
   sliderIncrement = (640 - SLIDER_WIDTH) / (this.WORLD_MAP_WIDTH - zoomLevelCorrection);
 
-  this.context.fillStyle = "grey";
+  this.canvas.context.fillStyle = "grey";
 
   // Render the horizontal bar
-  this.context.DrawHandle(
+  this.canvas.context.DrawHandle(
     this.viewport.i * sliderIncrement,
     642 + 0.5,
     SLIDER_WIDTH,
@@ -897,22 +887,11 @@ Game.prototype.RenderSliderHandle = function() {
   sliderIncrement = (640 - SLIDER_WIDTH) / (this.WORLD_MAP_HEIGHT - zoomLevelCorrection);
 	
   // Render the vertical bar
-  this.context.DrawHandle(
+  this.canvas.context.DrawHandle(
     642 + 0.5,
     this.viewport.j * sliderIncrement,
     this.PADDING - 4,
     SLIDER_WIDTH
-  );
-
-}
-
-Game.prototype.ClearInventory = function() {
-
-  this.inventoryContext.clearRect(
-    0,
-    0,
-    this.inventoryCanvas.width,
-    this.inventoryCanvas.height
   );
 
 }
@@ -922,7 +901,7 @@ Game.prototype.ClearInventory = function() {
  */
 Game.prototype.RenderInventory = function() {
 
-  this.ClearInventory();
+  this.inventory.canvas.Clear();
 
   this.RenderInventoryInterface();
 
@@ -937,25 +916,25 @@ Game.prototype.RenderInventoryInterface = function() {
 
   const SLIDER_WIDTH = 64;
 
-  this.inventoryContext.strokeStyle = "black";
+  this.inventory.canvas.context.strokeStyle = "black";
 
-  this.inventoryContext.beginPath();
+  this.inventory.canvas.context.beginPath();
 
   // Use half pixels to prevent aliasing effects
-  this.inventoryContext.rect(
+  this.inventory.canvas.context.rect(
     320 - 0.5,
     0 - 0.5,
     320,
-    this.inventoryCanvas.height + 1
+    this.inventory.canvas.height + 1
   );
 
-  this.inventoryContext.stroke();
+  this.inventory.canvas.context.stroke();
 
-  var sliderIncrement = (this.inventoryCanvas.height - SLIDER_WIDTH) / ((this.objectInventory.length / 10) - 21);
+  var sliderIncrement = (this.inventory.canvas.height - SLIDER_WIDTH) / ((this.objectInventory.length / 10) - 21);
 
-  this.inventoryContext.DrawHandle(
+  this.inventory.canvas.context.DrawHandle(
     322,
-    this.inventoryViewport.j * sliderIncrement,
+    this.inventory.viewport.j * sliderIncrement,
     16,
     SLIDER_WIDTH
   );
@@ -1013,30 +992,30 @@ CanvasRenderingContext2D.prototype.DrawHandle = function(x, y, width, height) {
  */
 Game.prototype.RenderInterface = function() {
 
-  this.context.strokeStyle = "black";
+  this.canvas.context.strokeStyle = "black";
 
-  this.context.beginPath();
+  this.canvas.context.beginPath();
 
   // Use half pixels to prevent aliasing effects
-  this.context.rect(
+  this.canvas.context.rect(
     -0.5,
     0.5 + 640,
     641,
     this.PADDING
   );
 
-  this.context.stroke();
-  this.context.beginPath();
+  this.canvas.context.stroke();
+  this.canvas.context.beginPath();
 
   // Use half pixels to prevent aliasing effects
-  this.context.rect(
+  this.canvas.context.rect(
     640 + 0.5,
     -0.5,
     this.PADDING,
     641
   );
 
-  this.context.stroke();
+  this.canvas.context.stroke();
 
   // Render the slider handles
   this.RenderSliderHandle();
@@ -1091,7 +1070,7 @@ Game.prototype.LoadResources = function() {
  */
 Game.prototype.ClearGameScreen = function() {
 
-  this.context.clearRect(
+  this.canvas.context.clearRect(
     0,
     0,
     this.canvas.width,
@@ -1141,7 +1120,7 @@ Game.prototype.SetLayerTransparency = function() {
   const LAYER_TRANSPARENCY = 128;
 
   // Get the canvas bitmap
-  var canvasBitmap = this.context.getImageData(
+  var canvasBitmap = this.canvas.context.getImageData(
     0,
     0,
     this.canvas.width - this.PADDING,
@@ -1155,33 +1134,11 @@ Game.prototype.SetLayerTransparency = function() {
   }
 
   // Write back to canvas
-  this.context.putImageData(
+  this.canvas.context.putImageData(
     canvasBitmap,
     0,
     0
   );
-
-}
-
-/* Game.RenderWindowBackground
- * Renders black background
- */
-Game.prototype.RenderWindowBackground = function() {
-
-  // Set the composite operation to destination over
-  this.context.globalCompositeOperation = "destination-over";
-
-  this.context.fillStyle = "black";
-
-  this.context.fillRect(
-    0,
-    0,
-    this.canvas.width - this.PADDING,
-    this.canvas.height - this.PADDING
-  );
-
-  // Set the composite operation to source over
-  this.context.globalCompositeOperation = "source-over";
 
 }
 
@@ -1194,7 +1151,7 @@ Game.prototype.Render = function() {
   this.bufferedImageData = null;
  
   // Clear all the sprites from the game screen 
-  this.ClearGameScreen();
+  this.canvas.Clear();
 
   // Call render for the GUI
   this.RenderInterface();
@@ -1207,7 +1164,7 @@ Game.prototype.Render = function() {
   // Set transparency of lower layers and render black background 
   this.SetLayerTransparency();
 
-  this.RenderWindowBackground();
+  this.canvas.RenderBackground();
 
   // Render the active layer
   this.RenderLayer(this.activeLayer);
@@ -1282,34 +1239,43 @@ Game.prototype.ScrollEvent = function(event) {
       this.ZoomByFactor(scrollUp ? 2 : 0.5);
       
       this.Render();
-      break;
 
     // Scrolling in inventory
-    case this.inventoryCanvas:
+    case this.inventory.canvas:
 
       // Update the inventory viewport
-      this.inventoryViewport.SetPosition(
+      this.inventory.viewport.SetPosition(
         null,
-        (this.inventoryViewport.j + (scrollUp ? -1 : 1)).Clamp(0, (this.objectInventory.length / 10) - 21)
+        (this.inventory.viewport.j + (scrollUp ? -1 : 1)).Clamp(0, (this.objectInventory.length / 10) - 21)
       );
 
       this.RenderInventory();
-      break;
 
   }
   
 }
 
+
+Game.prototype.GetSelectionBounds = function(startPosition, endPosition) {
+
+  return {
+    "iMinimum": Math.min(this.rectangleSelectStart.i, this.activePosition.i),
+    "jMinimum": Math.min(this.rectangleSelectStart.j, this.activePosition.j),
+    "iMaximum": Math.max(this.rectangleSelectStart.i, this.activePosition.i),
+    "jMaximum": Math.max(this.rectangleSelectStart.j, this.activePosition.j)
+  }
+
+}
+
 Game.prototype.DrawTileRectangle = function() {
-	
-  var iMinimum = Math.min(this.rectangleSelectStart.i, this.activePosition.i);
-  var jMinimum = Math.min(this.rectangleSelectStart.j, this.activePosition.j);
+
+  var bounds = this.GetSelectionBounds(
+    this.rectangleSelectStart,
+    this.activePosition
+  );
   
-  var iMaximum = Math.max(this.rectangleSelectStart.i, this.activePosition.i);
-  var jMaximum = Math.max(this.rectangleSelectStart.j, this.activePosition.j);
-  
-  for(var i = iMinimum; i <= iMaximum; i++) {
-    for(var j = jMinimum; j <= jMaximum; j++) {
+  for(var i = bounds.iMinimum; i <= bounds.iMaximum; i++) {
+    for(var j = bounds.jMinimum; j <= bounds.jMaximum; j++) {
   	  
       // Get the active index
   	  var position = new Position(i, j, this.activeLayer);
@@ -1376,7 +1342,7 @@ Game.prototype.MouseDownEvent = function(event) {
     );
 
     // Freeze and capture the full current scene
-    this.bufferedImageData = this.context.getImageData(
+    this.bufferedImageData = this.canvas.context.getImageData(
       0,
       0,
       this.canvas.width - this.PADDING,
@@ -1423,12 +1389,16 @@ Game.prototype.GetComponent = function(event) {
 /* Function Game.Draw
  * Draws object to canvas
  */
-Game.prototype.Draw = function(object, position, elevation, count) {
-	
+Game.prototype.Draw = function(tileObject, worldTile, elevation) {
+
+  var position = worldTile.position;
+
   // Default elevation of 0
   elevation = elevation || 0;
-  count = count || 0;
+  var count = tileObject.count || 0;
   
+  var object = tileObject.gameObjectPointer;
+
   if(object === null) {
     return;
   }
@@ -1437,7 +1407,7 @@ Game.prototype.Draw = function(object, position, elevation, count) {
   
   var spriteIndex = (position.i % object.pattern.width) + object.pattern.width * (position.j % object.pattern.height);
 
-  // Player the animation
+  // Play the animation
   if(object.animated) {
     spriteIndex = (spriteIndex + this.frameNumber) % (object.sprites.length - 1);  
   } else if(object.cumulative) {
@@ -1448,7 +1418,7 @@ Game.prototype.Draw = function(object, position, elevation, count) {
 
   // Draw the image and correct for the zoom level,
   // sprite size, and object elevation
-  this.context.drawImage(
+  this.canvas.context.drawImage(
     this.resources[sprite.resource],
     sprite.x,
     sprite.y,
@@ -1523,23 +1493,28 @@ Game.prototype.DrawSelectionTile = function(position) {
   }
 
   // Draw the phantom hover object with transparency
-  this.context.globalAlpha = HOVER_ALPHA_VALUE;
-  this.Draw(this.activeGameObject, position);
-  this.context.globalAlpha = 1.0;
+  this.canvas.context.globalAlpha = HOVER_ALPHA_VALUE;
+
+  this.Draw(
+    new TileObject(this.activeGameObject),
+    new WorldTile(position)
+  );
+
+  this.canvas.context.globalAlpha = 1.0;
 
   var pixelPosition = this.GetPixelPosition(position);
 
-  this.context.beginPath();
+  this.canvas.context.beginPath();
 
   // Use half pixels to prevent aliasing effects
-  this.context.rect(
+  this.canvas.context.rect(
     0.5 + pixelPosition.x,
     0.5 + pixelPosition.y,
     Math.floor(31 * this.zoomLevel),
     Math.floor(31 * this.zoomLevel)
   );
 
-  this.context.stroke();
+  this.canvas.context.stroke();
 
 }
 
@@ -1548,6 +1523,7 @@ Game.prototype.DrawSelectionTile = function(position) {
  */
 Game.prototype.DrawWorldTile = function(worldTile) {
 
+  // The maximum elevation in world units
   const MAXIMUM_ELEVATION = 24;
   
   if(worldTile === null) {
@@ -1561,17 +1537,16 @@ Game.prototype.DrawWorldTile = function(worldTile) {
   worldTile.objects.forEach(function(tileObject) {
 
     this.Draw(
-	  tileObject.gameObjectPointer,
-	  worldTile.position,
-	  elevation,
-      tileObject.count
-	);
+      tileObject,
+      worldTile,
+      elevation
+    );
 
-	// Keep track of the tile elevation
-	elevation = Math.min(
-	  elevation + tileObject.gameObjectPointer.elevation,
-	  MAXIMUM_ELEVATION
-	);
+    // Keep track of the tile elevation
+    elevation = Math.min(
+      (elevation + tileObject.gameObjectPointer.elevation).clamp(0, MAXIMUM_ELEVATION),
+      MAXIMUM_ELEVATION
+    );
 	
   }, this);
 

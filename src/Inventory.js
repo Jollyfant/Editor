@@ -1,44 +1,13 @@
-var WorldTile = function(position) {
+var Inventory = function(id) {
 
-  this.position = position;
-  this.objects = new Array();
+  this.PADDING = 20;
 
-  this.walkable = true;
+  this.viewport = new Position(0, 0, 0);
 
-}
-
-WorldTile.prototype.Add = function(id) {
-
-  var stackPosition = this.objects.length;
-
-  this.objects.push(
-    new TileObject(id, stackPosition)
+  this.canvas = new Canvas(
+    id,
+    320 + this.PADDING,
+    640
   );
-
-}
-/*
- * Public Function WorldTitle.HasGroundObject
- * Returns index of ground tile or null
- */
-WorldTile.prototype.HasGroundObject = function() {
-
-  for(var i = 0; i < this.objects.length; i++) {
-    if(this.objects[i].ground) {
-      return i;
-    }
-  }
-
-  return null;
-
-}
-
-WorldTile.prototype.SaveObject = function() {
-
-  return {
-    "position": this.position,
-    "objects":   this.objects.map(function(tileObject) {
-      return tileObject.SaveObject();
-    }),
-  }
 
 }
