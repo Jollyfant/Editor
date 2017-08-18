@@ -13,13 +13,6 @@ var Position = function(i, j, k) {
 
 }
 
-// Return the index
-Position.prototype.GetIndex = function() {
-
-  return this.i + (this.j * 1000) + (this.k * 1000 * 1000);
-
-}
-
 Position.prototype.SetPosition = function(i, j, k) {
 
   this.i = i === null ? this.i : i;

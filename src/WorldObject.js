@@ -9,11 +9,15 @@ var GameObject = function(object) {
   
   // Set whether the sprite needs to be animated
   this.animated = Boolean(spriteInfo.animation);
+
+  if(this.animated) {
+    this.animationPhases = spriteInfo.animation.spritePhase.length;
+  }
   
   // Save and respect the specified tile patterns
   this.pattern = {
     "width": spriteInfo.patternWidth,
-	"height": spriteInfo.patternHeight
+    "height": spriteInfo.patternHeight
   }
   
   if(object.flags.cumulative) {
@@ -41,11 +45,11 @@ var GameObject = function(object) {
 
     spriteId = spriteInfo.spriteId[i];
 	
-	catalogueEntry = this.GetCatalogueEntry(spriteId);
+    catalogueEntry = this.GetCatalogueEntry(spriteId);
 
     this.sprites.push(
-	  new Sprite(catalogueEntry, spriteId)
-	);
+      new Sprite(catalogueEntry, spriteId)
+    );
 	
   }
 
@@ -77,16 +81,16 @@ GameObject.prototype.GetCatalogueEntry = function(objectId) {
 
 GameObject.prototype.GetCountIndex = function(count) {
 
-  if(count === 1) {
-    return 0;
-  } else if(count === 2) {
-    return 1;
-  } else if(count === 3) {
-    return 2;
-  } else if(count === 4) {
-    return 3;
+  if(count < 5) {
+    return count - 1;
+  } else if(count < 10) {
+    return 4;
+  } else if(count < 10) {
+    return 5;
+  } else if(count < 50) {
+    return 6;
   } else {
-    return 0;
+    return this.sprites.length - 1;
   }
 
 }

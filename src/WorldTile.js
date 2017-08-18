@@ -7,6 +7,29 @@ var WorldTile = function(position) {
 
 }
 
+WorldTile.prototype.PopTopObject = function() {
+  
+  if(this.objects.length === 0) {
+    return null;
+  }
+
+  return this.objects.pop();
+
+}
+
+/* WorldTile.GetTopObject
+ * Returns the top object of tile
+ */
+WorldTile.prototype.GetTopObject = function() {
+
+  if(this.objects.length === 0) {
+    return null;
+  }
+
+  return this.objects[this.objects.length - 1];
+
+}
+
 WorldTile.prototype.Add = function(gameObject) {
 
   // Add a new object to a tile
@@ -36,6 +59,18 @@ WorldTile.prototype.HasGroundObject = function() {
   }
 
   return null;
+
+}
+
+/* Game.SortWorldTile
+ * Sorts the objects on a given world tile
+ */
+WorldTile.prototype.SortObjects = function() {
+
+  // Sort by property stackPosition
+  this.objects.sort(function(a, b) {
+    return a.stackPosition - b.stackPosition;
+  });
 
 }
 

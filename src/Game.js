@@ -1,13 +1,13 @@
 /*
  * Public Class Game
  */
-var Game = function() {
+var Editor = function() {
 
   this.APPLICATION_VERSION = "0.0.0";
 
   // World map settings
-  this.WORLD_MAP_WIDTH = 32;
-  this.WORLD_MAP_HEIGHT = 32;
+  this.WORLD_MAP_WIDTH = 32 * 10;
+  this.WORLD_MAP_HEIGHT = 32 * 10;
   this.WORLD_MAP_DEPTH = 14;
   this.PADDING = 20;
 
@@ -23,6 +23,7 @@ var Game = function() {
   
   this.information = document.getElementById("properties");
 
+  // Keep impure application state
   this.state = {
     "viewport": new Position(0, 0, 0),
     "activePosition": null,
@@ -41,9 +42,6 @@ var Game = function() {
     this.WORLD_MAP_WIDTH * this.WORLD_MAP_HEIGHT * this.WORLD_MAP_DEPTH
   );
 
-  this.moving = false;
-  this.deleting = false;
-
   this.undoCommandMemory = new Array();
   this.undoCommandMemoryBuffer = new Array();
 
@@ -55,9 +53,7 @@ var Game = function() {
 /* Game.InitAnimation
  * Initializes sprite animation
  */
-Game.prototype.InitAnimation = function() {
-
-  const ANIMATION_INTERVAL_MS = 333;
+Editor.prototype.InitAnimation = function() {
 
   // global frame number to keep track of
   this.frameNumber = 0;
@@ -65,7 +61,7 @@ Game.prototype.InitAnimation = function() {
   // Set the interval to update every N ms
   setInterval(
     this.IncrementAnimationFrame.bind(this),
-    ANIMATION_INTERVAL_MS
+    CONFIG.ANIMATION_INTERVAL_MS
   );
 
 }
@@ -74,12 +70,12 @@ Game.prototype.InitAnimation = function() {
  * Updates the running game frame bound between
  * 0 and 10
  */
-Game.prototype.IncrementAnimationFrame = function(x) {
+Editor.prototype.IncrementAnimationFrame = function(x) {
 
   // Increment the current frame number
   this.frameNumber = (this.frameNumber + 1) % 100;
 
-  // Only render at normal zoom level
+  // Only render at normal zoom level and while not selecting
   if(this.state.zoomLevel === 1 && this.state.rectangleSelectStart === null) {
     this.Render();
   }
@@ -89,20 +85,21 @@ Game.prototype.IncrementAnimationFrame = function(x) {
 /* Game.SetClickedInventoryObject
  * Returns the clicked object from inventory
  */
-Game.prototype.SetClickedInventoryObject = function(event) {
+Editor.prototype.SetClickedInventoryObject = function(event) {
 
   // Only depends on the y-coordinates of the canvas
   var canvasCoordinates = this.GetInventoryCoordinates(event);
   var index = 10 * (Math.floor(canvasCoordinates.y / 32) + this.inventory.viewport.j) + Math.floor(canvasCoordinates.x / 32);
 
   this.state.activeGameObject = this.objectInventory[index] || null;
+  console.log(this.state.activeGameObject);
 
 }
 
 /* Game.InitInventory
  * Initializes the inventory
  */
-Game.prototype.InitInventory = function() {
+Editor.prototype.InitInventory = function() {
 
   // Add all objects to the inventory
   this.CreateInventory();
@@ -115,7 +112,7 @@ Game.prototype.InitInventory = function() {
 /* Game.CreateInventory
  * Adds all objects to the internal inventory
  */
-Game.prototype.CreateInventory = function() {
+Editor.prototype.CreateInventory = function() {
 
   this.objectInventory = new Array();
 
@@ -133,7 +130,7 @@ Game.prototype.CreateInventory = function() {
 /* Game.GetInventoryObject
  * Returns the inventory object at a given index
  */
-Game.prototype.GetInventoryObject = function(index) {
+Editor.prototype.GetInventoryObject = function(index) {
 
   return this.objectInventory[index];
 
@@ -143,13 +140,12 @@ Game.prototype.GetInventoryObject = function(index) {
  * Draws the object inventory of the editor
  * that is corrected for the inventory viewport
  */
-Game.prototype.RenderInventoryContent = function() {
+Editor.prototype.RenderInventoryContent = function() {
 
   const NUMBER_OF_SPRITES_IN_WINDOW = 20;
 
   var object, sprite;
 
-  // We draw 20 sprites
   for(var i = 0; i < NUMBER_OF_SPRITES_IN_WINDOW; i++) {
 
     for(var j = 0; j < 10; j++) {
@@ -160,6 +156,7 @@ Game.prototype.RenderInventoryContent = function() {
         j + (10 * i) + this.inventory.viewport.j * 10
       );
 
+      // Get the first sprite in case of animation or pattern
       sprite = object.sprites[0];
           
       // Draw the sprite to the inventory
@@ -184,7 +181,7 @@ Game.prototype.RenderInventoryContent = function() {
 /* Game.Init
  * Initializes the application
  */
-Game.prototype.Init = function() {
+Editor.prototype.Init = function() {
 
   this.SetInfo("Initializing application ...");
   this.timeInitialized = new Date();
@@ -200,12 +197,12 @@ Game.prototype.Init = function() {
 
 }
 
-Game.prototype.SetInfo = function(str) {
+Editor.prototype.SetInfo = function(str) {
   this.information.innerHTML = str;
 }
 
 // Encodes the worldMapObject to JSON
-Game.prototype.EncodeWorldMap = function() {
+Editor.prototype.EncodeWorldMap = function() {
 
   return JSON.stringify(this.worldMapTiles.filter(function(x) {
     return x !== undefined;
@@ -218,7 +215,7 @@ Game.prototype.EncodeWorldMap = function() {
 /* Game.SaveWorldMap
  * Saves the world map to JSON
  */
-Game.prototype.SaveWorldMap = function() {
+Editor.prototype.SaveWorldMap = function() {
 
   const WORLD_MAP_ENCODING = "application/json";
 
@@ -227,7 +224,7 @@ Game.prototype.SaveWorldMap = function() {
 
   var file = new Blob(
     [encodedWorldMap],
-	{"type": WORLD_MAP_ENCODING}
+    {"type": WORLD_MAP_ENCODING}
   );
 
   temporaryLink.href = URL.createObjectURL(file);
@@ -241,7 +238,7 @@ Game.prototype.SaveWorldMap = function() {
 /* Game.KeyEvent
  * Handles window key events
  */
-Game.prototype.KeyEvent = function(event) {
+Editor.prototype.KeyEvent = function(event) {
 
   event.preventDefault();
 
@@ -302,13 +299,13 @@ Game.prototype.KeyEvent = function(event) {
     // Zoom in
     case ZOOM_PLUS:
     case ZOOM_PLUS_OSX:
-      this.state.activeLayer = Math.min(this.state.activeLayer + 1, this.WORLD_MAP_DEPTH);
+      this.IncrementActiveLayer(1);
       break;
 
     // Zoom out
     case ZOOM_MINUS:
     case ZOOM_MINUS_OSX:
-      this.state.activeLayer = Math.max(this.state.activeLayer - 1, 0);
+      this.IncrementActiveLayer(-1);
       break;
   }
 
@@ -335,10 +332,19 @@ Game.prototype.KeyEvent = function(event) {
 
 }
 
+/* Game.IncrementAciveLayer
+ * Increments the active layer up (+1) or down (-1)
+ */
+Editor.prototype.IncrementActiveLayer = function(direction) {
+
+  this.state.activeLayer = (this.state.activeLayer + direction).Clamp(0, this.WORLD_MAP_DEPTH);
+
+}
+
 /* Game.IncrementViewport
  * Moves the viewport up, down, left or right
  */
-Game.prototype.IncrementViewport = function(i, j) {
+Editor.prototype.IncrementViewport = function(i, j) {
 
   var maximumViewport = this.GetMaximumViewportIndex();
 
@@ -353,17 +359,17 @@ Game.prototype.IncrementViewport = function(i, j) {
 /* Game.GetInventoryComponent
  * Returns the clicked part of the inventory
  */
-Game.prototype.GetInventoryComponent = function(canvasCoordinates) {
+Editor.prototype.GetInventoryComponent = function(canvasCoordinates) {
 
   if(canvasCoordinates.x > 320) {
-    return new Component("inventoryHandleV")
+    return new Component("inventoryHandleV");
   } else {
     return new Component("inventoryWindow");
   }
   
 }
 
-Game.prototype.GetWorldComponent = function(canvasCoordinates) {
+Editor.prototype.GetWorldComponent = function(canvasCoordinates) {
   
   if(canvasCoordinates.y > 640) {
     return new Component("viewportHandleH");
@@ -379,7 +385,7 @@ Game.prototype.GetWorldComponent = function(canvasCoordinates) {
 /* Function Game.Undo
  * Undoes the previous command (place & delete)
  */
-Game.prototype.Undo = function() {
+Editor.prototype.Undo = function() {
 
   // Get the previous buffer
   var commands = this.undoCommandMemory.pop();
@@ -389,60 +395,35 @@ Game.prototype.Undo = function() {
     return;
   }
 
-  // Create a pointer for scoping forEach
-  var worldMapTilesPointer = this.worldMapTiles;
-
   // Go over each command in the buffer
   commands.forEach(function(command) {
 
-    if(command.type === "place") {
-      worldMapTilesPointer[command.tile].objects.pop();
+    if(command.type === "add") {
+      this.GetWorldMapTile(command.position).PopTopObject();
     }
 
-  });
+  }, this);
   
 }
 
-Game.prototype.ToggleMove = function() {
-
-  this.moving = !this.moving;
-
-  if(this.moving) {
-    this.state.activeGameObject = null;
-    this.ChangePointer("move");
-  } else {
-    this.ChangePointer("default");
-  }
-
-}
-
-Game.prototype.ToggleDelete = function() {
-
-  this.deleting = !this.deleting;
-
-  if(this.deleting) {
-    this.state.activeGameObject = null;
-    this.ChangePointer("not-allowed");
-  } else {
-    this.ChangePointer("default");
-  }
-
+Editor.prototype.ZoomInvalid = function(zoomLevelCorrection) {
+  return (zoomLevelCorrection > this.WORLD_MAP_WIDTH || zoomLevelCorrection > this.WORLD_MAP_HEIGHT);
 }
 
 /* Function Game.ZoomByFactor
  * Zoom with a particular zoom factor
  */
-Game.prototype.ZoomByFactor = function(factor) {
+Editor.prototype.ZoomByFactor = function(factor) {
 
   // Limit zoom factors to integers
   if(factor !== 0.5 && factor !== 2) {
     throw("The passed zoom factor must be either 0.5 or 2.");
   }
 
-  var zoomLevelCorrection = this.GetZoomLevelCorrection() / factor;
+  var zoomLevelCorrection = (1 / factor) * this.GetZoomLevelCorrection();
   
-  if(zoomLevelCorrection > this.WORLD_MAP_WIDTH || zoomLevelCorrection > this.WORLD_MAP_HEIGHT) {
-    return;  
+  if(this.ZoomInvalid()) {
+    return;
   }
   
   // Calculate the new zoom level Clamped between 0.125 and 1.
@@ -456,14 +437,14 @@ Game.prototype.ZoomByFactor = function(factor) {
  * Returns the correction to be applied for the
  * current zoom level
  */
-Game.prototype.GetZoomLevelCorrection = function() {
+Editor.prototype.GetZoomLevelCorrection = function() {
   return (20 / this.state.zoomLevel);	
 }
 
 /* Function Game.CenterViewport
  * Centers the camera to the active tile
  */
-Game.prototype.CenterViewport = function() {
+Editor.prototype.CenterViewport = function() {
 
   // Correct the viewport width for the zoom level
   const HALF_VIEWPORT_WIDTH = 0.5 * this.GetZoomLevelCorrection();
@@ -481,20 +462,24 @@ Game.prototype.CenterViewport = function() {
  * Clamps a number between [min, max]
  */
 Number.prototype.Clamp = function(min, max) {
+
   return Math.min(Math.max(this, min), max);
+
 }
 
 /* Game.ChangePointer
  * Changes the pointer style to specified type
  */
-Game.prototype.ChangePointer = function(type) {
+Editor.prototype.ChangePointer = function(type) {
+
   document.body.style.cursor = type;
+
 }
 
 /* Game.MoveInventory
  * Moves the visible inventory 
  */
-Game.prototype.MoveInventory = function(event) {
+Editor.prototype.MoveInventory = function(event) {
 
   // Width of the slider
   const SLIDER_WIDTH = 64;
@@ -519,7 +504,7 @@ Game.prototype.MoveInventory = function(event) {
 /* Game.MoveViewport
  * Moves the viewport through handle bar drag
  */
-Game.prototype.MoveViewport = function(event) {
+Editor.prototype.MoveViewport = function(event) {
 
   const SLIDER_WIDTH = 64;
   
@@ -531,6 +516,8 @@ Game.prototype.MoveViewport = function(event) {
   // Propogate the event to get the canvas coordinates
   var coordinates = this.GetRelativeCoordinates(event);
   var maximumViewport = this.GetMaximumViewportIndex();
+
+  var currentViewport = new Position(this.state.viewport.i, this.state.viewport.j, 0);
 
   if(this.state.activeComponent.id === "viewportHandleV") {
 
@@ -567,7 +554,7 @@ Game.prototype.MoveViewport = function(event) {
  * Returns the maximum allowed value for the viewport
  * corrected for the zoom level in (i, j)
  */
-Game.prototype.GetMaximumViewportIndex = function() {
+Editor.prototype.GetMaximumViewportIndex = function() {
 
   // Correct for the zoom level
   var zoomLevelCorrection = this.GetZoomLevelCorrection();
@@ -582,7 +569,7 @@ Game.prototype.GetMaximumViewportIndex = function() {
 /* Public Function Game.ClickEvent
  * Handles mouse click events
  */
-Game.prototype.ClickEvent = function(event) {
+Editor.prototype.ClickEvent = function(event) {
   
   // Propogate click event to get the
   // clicked inventory object
@@ -595,31 +582,15 @@ Game.prototype.ClickEvent = function(event) {
 
   this.AddTileObject(this.state.activePosition, this.state.activeGameObject);
 
-  // Push to the command buffer
-  this.undoCommandMemoryBuffer.push(
-    new Command(
-      this.state.activeGameObject,
-      index,
-      "place"
-    )
-  );
-
   this.Render();
 
 }
 
-var Command = function(id, tile, type) {
-
-  this.id = id;
-  this.tile = tile;
-  this.type = type;
-
-}
 
 /* Game.WorldTileExists
  * Returns true|false for existence of world tile
  */
-Game.prototype.WorldTileExists = function(index) {
+Editor.prototype.WorldTileExists = function(index) {
 
   return this.worldMapTiles[index] instanceof WorldTile;
 
@@ -628,14 +599,16 @@ Game.prototype.WorldTileExists = function(index) {
 /* Game.GetWorldMapTile
  * Returns and possibly creates a new world map tile
  */
-Game.prototype.GetWorldMapTile = function(position) {
+Editor.prototype.GetWorldMapTile = function(position) {
 
   // Convert position to index
   var index = this.GetPositionIndex(position);
 
   // Create if it does not exist
   if(!this.WorldTileExists(index)) {
+
     this.worldMapTiles[index] = new WorldTile(position);
+
   }
 
   return this.worldMapTiles[index];
@@ -645,8 +618,18 @@ Game.prototype.GetWorldMapTile = function(position) {
 /* Game.AddTileObject
  * Adds a tile object to the tile
  */
-Game.prototype.AddTileObject = function(position, gameObject) {
+Editor.prototype.AddTileObject = function(position, gameObject) {
 
+  // Push every item to the command buffer
+  this.undoCommandMemoryBuffer.push(
+    new Command(
+      gameObject,
+      position,
+      "add"
+    )
+  );
+
+  // Nothing selected
   if(gameObject === null) {
     return;
   }
@@ -663,26 +646,14 @@ Game.prototype.AddTileObject = function(position, gameObject) {
   }
 
   // Sort the objects on tile
-  this.SortWorldTile(worldMapTile);
-
-}
-
-/* Game.SortWorldTile
- * Sorts the objects on a given world tile
- */
-Game.prototype.SortWorldTile = function(worldTile) {
-
-  // Sort by property stackPosition
-  worldTile.objects.sort(function(a, b) {
-    return a.stackPosition - b.stackPosition;
-  });
+  worldMapTile.SortObjects();
 
 }
 
 /* Game.MovementDeferred
  * Returns true if movement should not be deferred
  */
-Game.prototype.MovementDeferred = function(activePositionBuffer) {
+Editor.prototype.MovementDeferred = function(activePositionBuffer) {
 
   // No active position thus no defer
   if(this.state.activePosition === null) {
@@ -698,7 +669,7 @@ Game.prototype.MovementDeferred = function(activePositionBuffer) {
  * Updates the pointer style of the mouse based
  * on the provided component
  */
-Game.prototype.SetMousePointerStyle = function(componentType) {
+Editor.prototype.SetMousePointerStyle = function(componentType) {
 
   if(componentType === "handle") {
     this.ChangePointer("move")
@@ -713,7 +684,7 @@ Game.prototype.SetMousePointerStyle = function(componentType) {
 /* Game.DrawSelectionRectangle
  * Draws a rectangle for selection
  */
-Game.prototype.DrawSelectionRectangle = function() {
+Editor.prototype.DrawSelectionRectangle = function() {
 
   const SELECTION_COLOR = "green";
   const SELECTION_COLOR_EMPTY = "blue";
@@ -736,8 +707,8 @@ Game.prototype.DrawSelectionRectangle = function() {
   this.canvas.context.fillRect(
     pixelPositionMin.x,
     pixelPositionMin.y,
-    32 + (pixelPositionMax.x - pixelPositionMin.x),
-    32 + (pixelPositionMax.y - pixelPositionMin.y)
+    (32 * this.state.zoomLevel) + (pixelPositionMax.x - pixelPositionMin.x),
+    (32 * this.state.zoomLevel) + (pixelPositionMax.y - pixelPositionMin.y)
   );
   
   this.canvas.context.globalAlpha = 1;
@@ -747,7 +718,7 @@ Game.prototype.DrawSelectionRectangle = function() {
 /* Function Game.MoveEvent
  * handles the mouse move event
  */
-Game.prototype.MoveEvent = function(event) {
+Editor.prototype.MoveEvent = function(event) {
   
   // Update the mouse pointer style
   this.SetMousePointerStyle(this.GetComponent(event).type);
@@ -781,6 +752,10 @@ Game.prototype.MoveEvent = function(event) {
       // Draw hover object on the new buffered position
       this.DrawHoverObject(activePositionBuffer);
 
+      if(this.state.mouseDown && this.state.activeGameObject === null) {
+        this.MoveObject(this.state.activePosition, activePositionBuffer);
+      }
+
       // Set the active position to the buffer
       this.state.activePosition = activePositionBuffer;
 
@@ -805,10 +780,31 @@ Game.prototype.MoveEvent = function(event) {
  
 }
 
+/* Editor.MoveObject
+ * Moves object from position to position
+ */
+Editor.prototype.MoveObject = function(from, to) {
+
+  // Get the top object from the tile
+  var topObject = this.GetWorldMapTile(from).PopTopObject();
+
+  // Nothing to grab
+  if(topObject === null) {
+    return;
+  }
+
+  // Get the tile to move to
+  var worldTile = this.GetWorldMapTile(to);
+
+  worldTile.objects.push(topObject);
+  worldTile.SortObjects();
+
+}
+
 /* Game.DumpImageBuffer
  * Puts image in buffer to x, y coordinates
  */
-Game.prototype.DumpImageBuffer = function(x, y) {
+Editor.prototype.DumpImageBuffer = function(x, y) {
 	
   this.canvas.context.putImageData(
     this.state.bufferedImageData,
@@ -818,7 +814,7 @@ Game.prototype.DumpImageBuffer = function(x, y) {
   
 }
 
-Game.prototype.GetTile = function(event) {
+Editor.prototype.GetTile = function(event) {
 
   // Get the canvas coordinates
   var coordinates = this.GetGameCoordinates(event);
@@ -835,7 +831,7 @@ Game.prototype.GetTile = function(event) {
  * Function Game.GetGameCoordinates
  * Returns the i, j position of the active tile
  */
-Game.prototype.GetGameCoordinates = function(event) {
+Editor.prototype.GetGameCoordinates = function(event) {
 
   // First get the canvas coordinates in (x, y)
   var canvasCoordinates = this.GetRelativeCoordinates(event);
@@ -854,7 +850,7 @@ Game.prototype.GetGameCoordinates = function(event) {
  * Function Game.GetRelativeCoordinates
  * Returns the x, y position in canvas coordinates
  */
-Game.prototype.GetInventoryCoordinates = function(event) {
+Editor.prototype.GetInventoryCoordinates = function(event) {
 
   // Correct for the canvas position
   return {
@@ -868,7 +864,7 @@ Game.prototype.GetInventoryCoordinates = function(event) {
  * Function Game.GetRelativeCoordinates
  * Returns the x, y position in canvas coordinates
  */
-Game.prototype.GetRelativeCoordinates = function(event) {
+Editor.prototype.GetRelativeCoordinates = function(event) {
 
   // Correct for the canvas position
   return {
@@ -882,7 +878,7 @@ Game.prototype.GetRelativeCoordinates = function(event) {
  * Renders the slider handles in the correct 
  * position as function of the viewport
  */
-Game.prototype.RenderSliderHandle = function() {
+Editor.prototype.RenderSliderHandle = function() {
 
   // Correct for the zoom level
   var zoomLevelCorrection = this.GetZoomLevelCorrection();
@@ -917,7 +913,7 @@ Game.prototype.RenderSliderHandle = function() {
 /* Game.RenderInventory
  * Renders the visible part of the game inventory
  */
-Game.prototype.RenderInventory = function() {
+Editor.prototype.RenderInventory = function() {
 
   this.inventory.canvas.Clear();
 
@@ -930,7 +926,7 @@ Game.prototype.RenderInventory = function() {
 /* Game.RenderInventoryInterface
  * Renders the interface of the inventory
  */
-Game.prototype.RenderInventoryInterface = function() {
+Editor.prototype.RenderInventoryInterface = function() {
 
   const SLIDER_WIDTH = 64;
 
@@ -1008,7 +1004,7 @@ CanvasRenderingContext2D.prototype.DrawHandle = function(x, y, width, height) {
 /* Game.RenderInterface
  * Renders the graphical user interface
  */
-Game.prototype.RenderInterface = function() {
+Editor.prototype.RenderInterface = function() {
 
   this.canvas.context.strokeStyle = "black";
 
@@ -1043,7 +1039,7 @@ Game.prototype.RenderInterface = function() {
 /* Game.LoadResources
  * Asynchronously loads the required resources
  */
-Game.prototype.LoadResources = function() {
+Editor.prototype.LoadResources = function() {
   
   this.resources = new Object();
   nResourcesLoaded = 1;
@@ -1086,7 +1082,7 @@ Game.prototype.LoadResources = function() {
  * Returns the position index of three dimensional world
  * represented in a single 1-dimensional array
  */
-Game.prototype.GetPositionIndex = function(position) {
+Editor.prototype.GetPositionIndex = function(position) {
 
   if(!position instanceof Position) {
     throw("Game.GetPositionIndex: position is not an instance of the Position class.")
@@ -1099,7 +1095,7 @@ Game.prototype.GetPositionIndex = function(position) {
 /* Game.RenderLayer
  * Renders a layer of the world
  */
-Game.prototype.RenderLayer = function(layer) {
+Editor.prototype.RenderLayer = function(layer) {
 
   // Get the zoom level correction
   var zoomLevelCorrection = this.GetZoomLevelCorrection();
@@ -1123,7 +1119,7 @@ Game.prototype.RenderLayer = function(layer) {
 /* Game.SetLayerTransparency
  * Sets the transparency of all lower layers
  */
-Game.prototype.SetLayerTransparency = function() {
+Editor.prototype.SetLayerTransparency = function() {
 
   // Transparency of lower layers
   const LAYER_TRANSPARENCY = 128;
@@ -1154,7 +1150,7 @@ Game.prototype.SetLayerTransparency = function() {
 /* Function Game.Render
  * Renders all objects in the viewport to screen
  */
-Game.prototype.Render = function() {
+Editor.prototype.Render = function() {
 
   // Clear image buffer
   this.state.bufferedImageData = null;
@@ -1186,7 +1182,7 @@ Game.prototype.Render = function() {
 /* Game.LoadResourcesCallback
  * Fires when all resources are loaded
  */
-Game.prototype.LoadResourcesCallback = function() {
+Editor.prototype.LoadResourcesCallback = function() {
 
   // Add the keyboard handler
   window.addEventListener("keydown", this.KeyEvent.bind(this));
@@ -1209,23 +1205,25 @@ Game.prototype.LoadResourcesCallback = function() {
 /* Game.DoubleClickEvent
  * Handles double click events
  */
-Game.prototype.DoubleClickEvent = function(event) {
+Editor.prototype.DoubleClickEvent = function(event) {
 
   // Return if an item is selected
   if(this.state.activeGameObject !== null) {
     return;
   }
 
-  // Get the active index
-  var index = this.GetPositionIndex(this.state.activePosition);
+  var worldMapTile = this.GetWorldMapTile(this.state.activePosition);
 
-  if(this.worldMapTiles[index] !== undefined) {
-    var object = this.worldMapTiles[index].objects[0];
+  if(worldMapTile === undefined) {
+    return;
   }
+
+  // Get the object pointer from the top of the tile
+  var object = worldMapTile.GetTopObject();
 
   // If cumulative prompt the item count
   if(object.gameObjectPointer.cumulative) {
-    object.count = Number(prompt("Item count"));
+    object.count = Number(prompt("Item count")) || 1;
   }
 
   this.Render();
@@ -1235,7 +1233,7 @@ Game.prototype.DoubleClickEvent = function(event) {
 /* Game.ScrollEvent
  * Handles scroll event 
  */
-Game.prototype.ScrollEvent = function(event) {
+Editor.prototype.ScrollEvent = function(event) {
 
   // Disable default scrolling
   event.preventDefault();
@@ -1246,14 +1244,15 @@ Game.prototype.ScrollEvent = function(event) {
   switch(event.target) {
 
     // Scrolling in canvas
-    case this.canvas:
+    case this.canvas.canvas:
 
       this.ZoomByFactor(scrollUp ? 2 : 0.5);
       
       this.Render();
+      break;
 
     // Scrolling in inventory
-    case this.inventory.canvas:
+    case this.inventory.canvas.canvas:
 
       // Update the inventory viewport
       this.inventory.viewport.SetPosition(
@@ -1262,6 +1261,7 @@ Game.prototype.ScrollEvent = function(event) {
       );
 
       this.RenderInventory();
+      break;
 
   }
   
@@ -1272,7 +1272,7 @@ Game.prototype.ScrollEvent = function(event) {
  * Returns (minimum, maximum) (i, j) for selection start
  * and current mouse position
  */
-Game.prototype.GetSelectionBounds = function(startPosition, endPosition) {
+Editor.prototype.GetSelectionBounds = function(startPosition, endPosition) {
 
   return {
     "iMinimum": Math.min(this.state.rectangleSelectStart.i, this.state.activePosition.i),
@@ -1286,7 +1286,7 @@ Game.prototype.GetSelectionBounds = function(startPosition, endPosition) {
 /* Game.DrawTileRectangle
  * Adds all items in selection
  */
-Game.prototype.DrawTileRectangle = function() {
+Editor.prototype.DrawTileRectangle = function() {
 
   // Get the bounds to draw
   var bounds = this.GetSelectionBounds(
@@ -1294,6 +1294,9 @@ Game.prototype.DrawTileRectangle = function() {
     this.state.activePosition
   );
   
+  this.undoCommandMemoryBuffer = new Array();
+
+  // Go over the entire selection
   for(var i = bounds.iMinimum; i <= bounds.iMaximum; i++) {
     for(var j = bounds.jMinimum; j <= bounds.jMaximum; j++) {
   	  
@@ -1301,19 +1304,21 @@ Game.prototype.DrawTileRectangle = function() {
       var position = new Position(i, j, this.state.activeLayer);
   	
       this.AddTileObject(position, this.state.activeGameObject);
-  	
+
     }
   }
 
   // Reset the rectangle select to NULL
   this.state.rectangleSelectStart = null;
-	
+
+  this.undoCommandMemory.push(this.undoCommandMemoryBuffer);
+
 }
 
 /* Game.MouseUpEvent
  * Handles mouse up state
  */
-Game.prototype.MouseUpEvent = function(event) {
+Editor.prototype.MouseUpEvent = function(event) {
 
   // Update the mouse state
   this.state.mouseDown = false;
@@ -1344,7 +1349,7 @@ Game.prototype.MouseUpEvent = function(event) {
 /* Game.SetSelectionState
  * Initializes the selection state
  */
-Game.prototype.SetSelectionState = function() {
+Editor.prototype.SetSelectionState = function() {
 
   // Create a position for the selection start
   this.state.rectangleSelectStart = new Position(
@@ -1366,7 +1371,7 @@ Game.prototype.SetSelectionState = function() {
 /* Game.MouseDownEvent
  * Handles mouse down state
  */
-Game.prototype.MouseDownEvent = function(event) {
+Editor.prototype.MouseDownEvent = function(event) {
 
   // Shift key is pressed during mouse down
   if(event.shiftKey) {
@@ -1386,7 +1391,7 @@ Game.prototype.MouseDownEvent = function(event) {
   
 }
 
-Game.prototype.GetComponent = function(event) {
+Editor.prototype.GetComponent = function(event) {
 
   // Get the clicked component in the interface
   switch(event.target.id) {
@@ -1409,7 +1414,7 @@ Game.prototype.GetComponent = function(event) {
 /* Function Game.Draw
  * Draws object to canvas
  */
-Game.prototype.Draw = function(tileObject, worldTile, elevation) {
+Editor.prototype.Draw = function(tileObject, worldTile, elevation) {
 
   var position = worldTile.position;
 
@@ -1429,7 +1434,7 @@ Game.prototype.Draw = function(tileObject, worldTile, elevation) {
 
   // Play the animation
   if(object.animated) {
-    spriteIndex = (spriteIndex + this.frameNumber) % (object.sprites.length - 1);  
+    spriteIndex = (spriteIndex + this.frameNumber) % (object.animationPhases - 1);  
   } else if(object.cumulative) {
     spriteIndex = object.GetCountIndex(count);
   }
@@ -1455,7 +1460,7 @@ Game.prototype.Draw = function(tileObject, worldTile, elevation) {
 /* Function Game.PositionInViewport
  * Returns Boolean whether a position is in the viewport
  */
-Game.prototype.PositionInViewport = function(position) {
+Editor.prototype.PositionInViewport = function(position) {
 
   var zoomLevelCorrection = this.GetZoomLevelCorrection();
 
@@ -1472,7 +1477,7 @@ Game.prototype.PositionInViewport = function(position) {
 /* Function Game.DrawHoverObject
  * Draws the bounding box and active object
  */
-Game.prototype.DrawHoverObject = function(position) {
+Editor.prototype.DrawHoverObject = function(position) {
 
   // Dump buffered image data if present
   if(this.state.bufferedImageData) {
@@ -1514,7 +1519,7 @@ Game.prototype.DrawHoverObject = function(position) {
  * world coordinates (i, j) corrected for the viewport 
  * and zoom level
  */
-Game.prototype.GetPixelPosition = function(position) {
+Editor.prototype.GetPixelPosition = function(position) {
 
   // If the position is not within
   // the viewport return null
@@ -1532,7 +1537,7 @@ Game.prototype.GetPixelPosition = function(position) {
 /* Function Game.DrawSelectionTile
  * Draws the selection rectangle around the passed position
  */
-Game.prototype.DrawSelectionTile = function(position) {
+Editor.prototype.DrawSelectionTile = function(position) {
 
   // Draw the phantom hover object with transparency
   if(this.state.activeGameObject !== null) {
@@ -1547,7 +1552,7 @@ Game.prototype.DrawSelectionTile = function(position) {
 /* Game.DrawPhantomGameObject
  * Draws transparent placeholder object on hover
  */
-Game.prototype.DrawPhantomGameObject = function(position) {
+Editor.prototype.DrawPhantomGameObject = function(position) {
 
   const HOVER_ALPHA_VALUE = 0.5;
 
@@ -1565,7 +1570,7 @@ Game.prototype.DrawPhantomGameObject = function(position) {
 /* Game.DrawSelectionBorder
  * Draws border around currently active tile
  */
-Game.prototype.DrawSelectionBorder = function(position) {
+Editor.prototype.DrawSelectionBorder = function(position) {
 
   var pixelPosition = this.GetPixelPosition(position);
 
@@ -1586,19 +1591,16 @@ Game.prototype.DrawSelectionBorder = function(position) {
 /* Function Game.DrawWorldTiles
  * Draws a world tile with all objects
  */
-Game.prototype.DrawWorldTile = function(worldTile) {
+Editor.prototype.DrawWorldTile = function(worldTile) {
 
-  // The maximum elevation in world units
-  const MAXIMUM_ELEVATION = 24;
-  
   if(worldTile === null) {
     return;
   }
 
-  // Draw all objects on the tile
-  // and correct for item elevations
   var elevation = 0;
-  
+
+  // Draw all objects on the tile
+  // and correct for tile elevation
   worldTile.objects.forEach(function(tileObject) {
 
     this.Draw(
@@ -1610,7 +1612,7 @@ Game.prototype.DrawWorldTile = function(worldTile) {
     // Keep track of the tile elevation
     elevation = Math.min(
       elevation + tileObject.gameObjectPointer.elevation,
-      MAXIMUM_ELEVATION
+      CONFIG.MAXIMUM_ELEVATION
     );
 	
   }, this);
